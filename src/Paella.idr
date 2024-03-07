@@ -29,13 +29,6 @@ idRen a x = x
 Family : Type
 Family = World -> Type
 
-
-record Closure (f : Family) (w : World) where
-  constructor Close
-  ctx : World
-  weaken : ctx ~> w
-  val : f ctx
-
 infixr 1 -|>
 
 -- Family transformation
@@ -46,8 +39,14 @@ PresheafOver : Family -> Type
 PresheafOver f = {w1, w2 : World}  -> (rho : w1 ~> w2) ->
   f w1 -> f w2
 
-
 namespace Algebra
+  public export
+  record Closure (f : Family) (w : World) where
+    constructor Close
+    ctx : World
+    weaken : ctx ~> w
+    val : f ctx
+
   public export
   D : Family -> Family
   D = Closure  --(b : World ** (b ~> a, f b))
