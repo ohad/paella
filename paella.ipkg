@@ -1,6 +1,6 @@
-package pateh
+package paella
 version = 0.1.0
-authors = "Ohad Kammar"
+authors = "Ohad Kammar and Jesse Sigal"
 -- maintainers =
 -- license =
 -- brief =
@@ -16,7 +16,7 @@ authors = "Ohad Kammar"
 -- depends =
 
 -- modules to install
-modules = Pateh
+modules = Paella
 
 -- main file (i.e. file to load at REPL)
 -- main =

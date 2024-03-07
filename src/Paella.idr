@@ -1,4 +1,4 @@
-module Pateh
+module Paella
 
 data A = P1 | P2 | P3
 

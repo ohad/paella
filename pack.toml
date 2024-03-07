@@ -1,10 +1,10 @@
-[custom.all.pateh]
+[custom.all.paella]
 type = "local"
 path = "."
-ipkg = "pateh.ipkg"
+ipkg = "paella.ipkg"
 test = "test/test.ipkg"
 
-[custom.all.pateh-test]
+[custom.all.paella-test]
 type = "local"
 path = "test"
 ipkg = "test.ipkg"

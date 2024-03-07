@@ -1,4 +1,4 @@
-package pateh-test
+package paella-test
 version = 0.1.0
 authors = "Ohad Kammar"
 -- maintainers =
@@ -13,7 +13,7 @@ authors = "Ohad Kammar"
 -- langversion
 
 -- packages to add to search path
-depends = pateh
+depends = paella
 
 -- modules to install
 -- modules =
@@ -22,7 +22,7 @@ depends = pateh
 main = Main
 
 -- name of executable
-executable = "pateh-test"
+executable = "paella-test"
 -- opts =
 sourcedir = "src"
 -- builddir =
