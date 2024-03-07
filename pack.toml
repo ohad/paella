@@ -1,0 +1,10 @@
+[custom.all.pateh]
+type = "local"
+path = "."
+ipkg = "pateh.ipkg"
+test = "test/test.ipkg"
+
+[custom.all.pateh-test]
+type = "local"
+path = "test"
+ipkg = "test.ipkg"
