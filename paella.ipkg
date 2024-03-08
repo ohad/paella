@@ -13,7 +13,7 @@ authors = "Ohad Kammar and Jesse Sigal"
 -- langversion
 
 -- packages to add to search path
--- depends =
+depends = contrib
 
 -- modules to install
 modules = Paella
