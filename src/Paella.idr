@@ -156,6 +156,11 @@ inr : w2 ~> w1 ++ w2
 inr {w2 = .(w2 :< a)} a Here = Here
 inr {w2 = .(w2 :< b)} a (There x) = There (inr a x)
 
+cotuple : {w2 : World} -> (w1 ~> w) -> (w2 ~> w) -> w1 ++ w2 ~> w
+cotuple {w2 = [<]    } f g   a  x        = f a x
+cotuple {w2 = w2 :< b} f g .(b) Here     = g b Here
+cotuple {w2 = w2 :< b} f g   a (There x) = cotuple f (\c, y => g c (There y)) a x
+
 ||| Monoidal action on maps
 bimap : {w1, w2, w1', w2' : World} -> (w1 ~> w1') -> (w2 ~> w2') -> (w1 ++ w2) ~> (w1' ++ w2')
 bimap f g a x = case split x of
@@ -166,9 +171,6 @@ bimap f g a x = case split x of
 (.shiftAlg) : (w1 : World) -> {f : Family} -> DAlg f -> DAlg (w1.shift f)
 w1.shiftAlg {f} alg = MkDAlg $ \w, (Close ctx rho v) =>
   alg.map (Paella.bimap idRen rho) v
-
--- (f.shift) is actually an exponential
---(.lambda) : (w : World) ->
 
 ||| The product family is given pointwise
 FamProd : SnocList Family -> Family
@@ -205,6 +207,18 @@ BoxCoalgProd sbox = MkBoxCoalg $ \w, sx, w', rho =>
     sbox
     sx
 
+Env : World -> Family
+Env w = (w ~>)
+
+
+-- (f.shift) is actually an exponential
+(.eval) : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
+       FamProd [< w1.shift f, Env w1] -|> f
+fPsh.eval w [< u, rho] = fPsh.map (cotuple rho idRen) u
+
+--(.lambda) : WE ARE HERE
+
+
 record OpSig where
   constructor MkOpSig
   Args  : World
@@ -212,9 +226,6 @@ record OpSig where
 
 Signature : Type
 Signature = List OpSig
-
-Env : World -> Family
-Env w = (w ~>)
 
 data (.Free) : Signature -> Family -> Family where
   Return : f -|> sig.Free f
@@ -235,8 +246,8 @@ sig.AlgebraOver f = ForAll sig $ \op =>
   FamProd (map (\w => w.shift f) op.Arity) -|> (op.Args).shift f
 
 TermAlgebra : (sig : Signature) -> (f : Family) -> sig.AlgebraOver (sig.Free f)
-TermAlgebra sig f = tabulateElem sig $ \op,pos,w =>
-  let shed = Op pos ?TermAlgebra_rhs
+TermAlgebra sig f = tabulateElem sig $ \op,pos,w,env =>
+  let shed = Op pos ?TermAlgebra_rhs ?h189
   in ?result
 
 {-
