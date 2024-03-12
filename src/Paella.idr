@@ -1,5 +1,7 @@
 module Paella
 
+import Data.DPair
+
 import Data.SnocList
 import Data.SnocList.Quantifiers
 
@@ -28,6 +30,9 @@ namespace Data.List.Quantifiers
 
 namespace Data.SnocList.Quantifiers
   public export
+  ForAny :  SnocList a -> (0 _ : (a -> Type)) -> Type
+  ForAny sx p = Any p sx
+  public export
   ForAll : SnocList a -> (0 p : (a -> Type)) -> Type
   ForAll sx p = All p sx
 
@@ -37,9 +42,21 @@ namespace Data.SnocList.Quantifiers
   tabulate (sx :< x) f = tabulate sx f :< f x
 
   public export
-  ripple : {0 xs : SnocList a} -> ForAll xs (p . f) -> ForAll (map f xs) p
-  ripple [<] = [<]
-  ripple (sx :< x) = ripple sx :< x
+  rippleAll : {0 xs : SnocList a} -> ForAll xs (p . f) -> ForAll (map f xs) p
+  rippleAll [<] = [<]
+  rippleAll (sx :< x) = rippleAll sx :< x
+
+  public export
+  unrippleAll : {xs : SnocList a} -> {f : a -> b} -> ForAll (map f xs) p -> ForAll xs (p . f)
+  unrippleAll sy with (xs)
+    unrippleAll ([<]) | [<] = [<]
+    unrippleAll (sy :< y) | (sx :< x) = unrippleAll sy :< y
+
+  public export
+  unrippleAny : {xs : SnocList a} -> {f : a -> b} -> ForAny (map f xs) p -> ForAny xs (p . f)
+  unrippleAny y with (xs)
+    unrippleAny (Here y) | (sx :< x) = Here y
+    unrippleAny (There y) | (sx :< x) = There (unrippleAny y)
 
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type
@@ -253,8 +270,30 @@ f ^ ws = FamProd (map (\w => w.shift f) ws)
 ArityExponential : {f : Family} -> (BoxCoalg f) ->
   {ws : SnocList World} -> BoxCoalg (f ^ ws)
 ArityExponential {f, ws} boxCoalg
-  = BoxCoalgProd $ ripple $ tabulate _
+  = BoxCoalgProd $ rippleAll $ tabulate _
                  $ \w => w.shiftCoalg boxCoalg
+
+applyAny : {xs : SnocList _} ->
+  ((x : _) -> p x -> q x -> r x) -> All p xs -> Any q xs -> Any r xs
+applyAny f (sx :< x) (Here y) = Here (f _ x y)
+applyAny f (sx :< x) (There y) = There (applyAny f sx y)
+
+||| The sum family is given pointwise
+FamSum : SnocList Family -> Family
+FamSum sf w = ForAny sf $ \f => f w
+
+||| Presheaf structure of sum presheaf
+BoxCoalgSum : {sf : SnocList Family} -> ForAll sf (\f => BoxCoalg f) ->
+  BoxCoalg $ FamSum sf
+BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho => applyAny (\f, coalg => coalg.map rho) salg sx
+
+-- (f ^ ws) is actually an exponential
+(.evalSum) : {ws : SnocList World} -> {f : Family} -> (fPsh : DAlg f) ->
+       FamProd [< f ^ ws, FamSum (map Env ws)] -|> f
+fPsh.evalSum w [< u, rho] =
+  let (u', rho') = (unrippleAll u, unrippleAny rho)
+      applied = applyAny (\w1,x,rho => fPsh.map (cotuple rho idRen) x) u' rho'
+  in snd (toExists applied)
 
 data (.Free) : Signature -> Family -> Family where
   Return : f -|> sig.Free f
