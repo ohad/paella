@@ -224,6 +224,12 @@ record OpSig where
   Args  : World
   Arity : SnocList World
 
+forkType : OpSig
+forkType = MkOpSig
+  { Args = [<]
+  , Arity = [< [< P1], [<]]
+  }
+
 Signature : Type
 Signature = List OpSig
 
