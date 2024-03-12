@@ -36,7 +36,10 @@ namespace Data.SnocList.Quantifiers
   tabulate [<] f = [<]
   tabulate (sx :< x) f = tabulate sx f :< f x
 
-
+  public export
+  ripple : {0 xs : SnocList a} -> ForAll xs (p . f) -> ForAll (map f xs) p
+  ripple [<] = [<]
+  ripple (sx :< x) = ripple sx :< x
 
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type
@@ -172,6 +175,9 @@ bimap f g a x = case split x of
 w1.shiftAlg {f} alg = MkDAlg $ \w, (Close ctx rho v) =>
   alg.map (Paella.bimap idRen rho) v
 
+(.shiftCoalg) : (w1 : World) -> {f : Family} -> BoxCoalg f -> BoxCoalg (w1.shift f)
+w1.shiftCoalg {f} boxCoalg = cast (w1.shiftAlg $ cast {to = DAlg f} boxCoalg)
+
 ||| The product family is given pointwise
 FamProd : SnocList Family -> Family
 FamProd sf w = ForAll sf $ \f => f w
@@ -216,8 +222,13 @@ Env w = (w ~>)
        FamProd [< w1.shift f, Env w1] -|> f
 fPsh.eval w [< u, rho] = fPsh.map (cotuple rho idRen) u
 
---(.lambda) : WE ARE HERE
+(.curry) : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
+  (FamProd [< f, Env w1] -|> g) -> f -|> w1.shift g
+fPsh.curry alpha w u = alpha (w1 ++ w) [< fPsh.map inr u , inl]
 
+(.uncurry) : {w1 : World} -> {g : Family} -> (gPsh : DAlg g) ->
+  (f -|> w1.shift g) -> (FamProd [< f, Env w1] -|> g)
+gPsh.uncurry beta w [< u, rho] = gPsh.map (cotuple rho idRen) (beta w u)
 
 record OpSig where
   constructor MkOpSig
@@ -233,6 +244,18 @@ forkType = MkOpSig
 Signature : Type
 Signature = List OpSig
 
+infixl 7 ^
+
+||| The exponentiation of f by the sum of representables coprod_{w in ws} y(w)
+(^) : Family -> SnocList World -> Family
+f ^ ws = FamProd (map (\w => w.shift f) ws)
+
+ArityExponential : {f : Family} -> (BoxCoalg f) ->
+  {ws : SnocList World} -> BoxCoalg (f ^ ws)
+ArityExponential {f, ws} boxCoalg
+  = BoxCoalgProd $ ripple $ tabulate _
+                 $ \w => w.shiftCoalg boxCoalg
+
 data (.Free) : Signature -> Family -> Family where
   Return : f -|> sig.Free f
   Op : {op : OpSig} ->
@@ -242,14 +265,14 @@ data (.Free) : Signature -> Family -> Family where
     -- Argument
     Env op.Args w ->
     -- Continuation
-    FamProd
-      (map (\w => w.shift (sig.Free f)) op.Arity)
-      w ->
+    ((sig.Free f) ^ op.Arity) w ->
     sig.Free f w
 
 (.AlgebraOver) : Signature -> Family -> Type
 sig.AlgebraOver f = ForAll sig $ \op =>
-  FamProd (map (\w => w.shift f) op.Arity) -|> (op.Args).shift f
+  f ^ op.Arity -|> (op.Args).shift f
+
+
 
 TermAlgebra : (sig : Signature) -> (f : Family) -> sig.AlgebraOver (sig.Free f)
 TermAlgebra sig f = tabulateElem sig $ \op,pos,w,env =>
