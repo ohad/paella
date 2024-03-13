@@ -61,8 +61,17 @@ namespace Data.SnocList.Quantifiers
   public export
   applyAny : {xs : SnocList _} ->
     ((x : _) -> p x -> q x -> r x) -> All p xs -> Any q xs -> Any r xs
-  applyAny f (sx :< x) (Here y) = Here (f _ x y)
-  applyAny f (sx :< x) (There y) = There (applyAny f sx y)
+  applyAny f (sx :< x) (Here  u  ) = Here  (f _ x u)
+  applyAny f (sx :< x) (There pos) = There (applyAny f sx pos)
+
+  -- For completeness
+
+  public export
+  applyAnyErased : {0 xs : SnocList _} ->
+    ((0 x : _) -> p x -> q x -> r x) -> All p xs -> Any q xs -> Any r xs
+  applyAnyErased f (sx :< x) (Here  u  ) = Here  (f _ x u)
+  applyAnyErased f (sx :< x) (There pos) = There (applyAnyErased f sx pos)
+
 
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type
