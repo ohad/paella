@@ -58,6 +58,12 @@ namespace Data.SnocList.Quantifiers
   unrippleAny {xs = sx :< b} (Here  x  ) = Here x
   unrippleAny {xs = sx :< b} (There pos) = There (unrippleAny pos)
 
+  public export
+  applyAny : {xs : SnocList _} ->
+    ((x : _) -> p x -> q x -> r x) -> All p xs -> Any q xs -> Any r xs
+  applyAny f (sx :< x) (Here y) = Here (f _ x y)
+  applyAny f (sx :< x) (There y) = There (applyAny f sx y)
+
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type
 data A = P1 | P2 | P3
@@ -272,11 +278,6 @@ ArityExponential : {f : Family} -> (BoxCoalg f) ->
 ArityExponential {f, ws} boxCoalg
   = BoxCoalgProd $ rippleAll $ tabulate _
                  $ \w => w.shiftCoalg boxCoalg
-
-applyAny : {xs : SnocList _} ->
-  ((x : _) -> p x -> q x -> r x) -> All p xs -> Any q xs -> Any r xs
-applyAny f (sx :< x) (Here y) = Here (f _ x y)
-applyAny f (sx :< x) (There y) = There (applyAny f sx y)
 
 ||| The sum family is given pointwise
 FamSum : SnocList Family -> Family
