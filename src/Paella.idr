@@ -54,9 +54,9 @@ namespace Data.SnocList.Quantifiers
 
   public export
   unrippleAny : {xs : SnocList a} -> {f : a -> b} -> ForAny (map f xs) p -> ForAny xs (p . f)
-  unrippleAny y with (xs)
-    unrippleAny (Here y) | (sx :< x) = Here y
-    unrippleAny (There y) | (sx :< x) = There (unrippleAny y)
+  unrippleAny {xs = [<]} _ impossible
+  unrippleAny {xs = sx :< b} (Here  x  ) = Here x
+  unrippleAny {xs = sx :< b} (There pos) = There (unrippleAny pos)
 
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type
