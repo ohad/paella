@@ -47,13 +47,13 @@ namespace Data.SnocList.Quantifiers
   rippleAll (sx :< x) = rippleAll sx :< x
 
   public export
-  unrippleAll : {xs : SnocList a} -> {f : a -> b} -> ForAll (map f xs) p -> ForAll xs (p . f)
+  unrippleAll : {xs : SnocList a} -> {0 f : a -> b} -> ForAll (map f xs) p -> ForAll xs (p . f)
   unrippleAll sy with (xs)
     unrippleAll ([<]) | [<] = [<]
     unrippleAll (sy :< y) | (sx :< x) = unrippleAll sy :< y
 
   public export
-  unrippleAny : {xs : SnocList a} -> {f : a -> b} -> ForAny (map f xs) p -> ForAny xs (p . f)
+  unrippleAny : {xs : SnocList a} -> {0 f : a -> b} -> ForAny (map f xs) p -> ForAny xs (p . f)
   unrippleAny {xs = [<]} _ impossible
   unrippleAny {xs = sx :< b} (Here  x  ) = Here x
   unrippleAny {xs = sx :< b} (There pos) = There (unrippleAny pos)
@@ -63,6 +63,13 @@ namespace Data.SnocList.Quantifiers
     ((x : _) -> p x -> q x -> r x) -> All p xs -> Any q xs -> Any r xs
   applyAny f (sx :< x) (Here  u  ) = Here  (f _ x u)
   applyAny f (sx :< x) (There pos) = There (applyAny f sx pos)
+
+  -- Putting these together results in a flexible version
+  public export
+  applyMapAllAny : {sx : SnocList a} ->
+    ((x : a) -> (p . f) x -> (q . g) x -> r x) ->
+    All p (map f sx) -> Any q (map g sx) -> Any r sx
+  applyMapAllAny h su pos = applyAny h (unrippleAll su) (unrippleAny pos)
 
   -- For completeness
 
@@ -304,8 +311,10 @@ BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho => applyAny (\f, coalg => coalg
 (.evalSum) : {ws : SnocList World} -> {f : Family} -> (fPsh : DAlg f) ->
        FamProd [< f ^ ws, FamSum (map Env ws)] -|> f
 fPsh.evalSum w [< u, rho] =
-  let (u', rho') = (unrippleAll u, unrippleAny rho)
-  in forgetAny $ applyAny (\w1,x,rho => fPsh.map (cotuple rho idRen) x) u' rho'
+  forgetAny $ applyMapAllAny
+                (\w1,x,rho => fPsh.map (cotuple rho idRen) x)
+                u
+                rho
 
 data (.Free) : Signature -> Family -> Family where
   Return : f -|> sig.Free f
