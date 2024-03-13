@@ -282,7 +282,11 @@ fPsh.eval w [< u, rho] = fPsh.map (cotuple rho idRen) u
 
 (.curry) : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
   (FamProd [< f, Env w1] -|> g) -> f -|> w1.shift g
-fPsh.curry alpha w u = alpha (w1 ++ w) [< fPsh.map inr u , inl]
+fPsh.curry alpha w u = alpha (w1 ++ w) [< fPsh.map inr u, inl]
+
+(.curry') : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
+  (FamProd [< Env w1, f] -|> g) -> f -|> w1.shift g
+fPsh.curry' alpha w u = alpha (w1 ++ w) [< inl, fPsh.map inr u]
 
 (.uncurry) : {w1 : World} -> {g : Family} -> (gPsh : DAlg g) ->
   (f -|> w1.shift g) -> (FamProd [< f, Env w1] -|> g)
@@ -356,26 +360,30 @@ data (.Free) : Signature -> Family -> Family where
     ((sig.Free f) ^ op.Arity) w ->
     sig.Free f w
 
+mapPropertyWithRelevant : {xs : SnocList _} ->
+  ((x : _) -> p x -> q x) -> All p xs -> All q xs
+mapPropertyWithRelevant f [<] = [<]
+mapPropertyWithRelevant f (sy :< y) = mapPropertyWithRelevant f sy :< f _ y
+
+BoxCoalgFree : {sig : Signature} -> {f : Family} -> BoxCoalg f -> BoxCoalg (sig.Free f)
+BoxCoalgFree coalg = MkBoxCoalg $ \w, term, w', rho =>
+  case term of
+    Return w1 var => Return w' (coalg.map rho var)
+    Op pos arg cont =>
+      let freeCoalg = BoxCoalgFree {sig = sig} {f = f} coalg
+          recurse = (\x => freeCoalg.map (bimap idRen {w1 = x} {w1' = x} rho))
+      in Op pos (rho . arg) (rippleAll (mapPropertyWithRelevant recurse (unrippleAll cont)))
+
 (.AlgebraOver) : Signature -> Family -> Type
 sig.AlgebraOver f = ForAll sig $ \op =>
   f ^ op.Arity -|> (op.Args).shift f
 
-
-
-TermAlgebra : (sig : Signature) -> (f : Family) -> sig.AlgebraOver (sig.Free f)
-TermAlgebra sig f = tabulateElem sig $ \op,pos,w,env =>
-  let shed = Op pos ?TermAlgebra_rhs ?h189
-  in ?result
-
-{-
-DAlgProd : {sf : SnocList Family} -> ForAll sf (\f => DAlg f) ->
-  DAlg $ FamProd sf
-DAlgProd salg = MkDAlg $ \w, closure => ?h89
--}
-  {-zipPropertyWith
-  (\x => ?DAlgProd_rhs_2)
-  salg
-  ?DAlgProd_rhs_4-}
+TermAlgebra : (sig : Signature) -> (f : Family) -> (BoxCoalg f) -> sig.AlgebraOver (sig.Free f)
+TermAlgebra sig f coalg = tabulateElem sig $ \op,pos,w,env =>
+  let freeAlg = cast {from = BoxCoalg (sig.Free f), to = DAlg (sig.Free f)} (BoxCoalgFree coalg)
+      cur = freeAlg.curry' ?alpha w
+      shed = Op pos
+  in ?res
 
 test : String
 test = "Hello from Idris2!"
