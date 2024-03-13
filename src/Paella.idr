@@ -341,6 +341,8 @@ fPsh.currySum {ws = ws' :< w'} alpha w u =
 
 (.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (gPsh : DAlg g) ->
   (f -|> g ^ ws) -> (FamProd [< f, FamSum (map Env ws)] -|> g)
+gPsh.uncurrySum beta w [< u, rho] =
+  forgetAny $ applyMapAllAny (\w1, x, rho' => gPsh.map (cotuple rho' idRen) x) (beta w u) rho
 
 data (.Free) : Signature -> Family -> Family where
   Return : f -|> sig.Free f
