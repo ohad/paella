@@ -3,6 +3,7 @@ module Paella
 import Data.DPair
 
 import Data.SnocList
+import Data.SnocList.Elem
 import Data.SnocList.Quantifiers
 
 import Data.List
@@ -37,14 +38,29 @@ namespace Data.SnocList.Quantifiers
   ForAll sx p = All p sx
 
   public export
+  injectAny : {xs : SnocList a} -> {p : a -> Type} -> x `Elem` xs -> p x -> Any p xs
+  injectAny Here px = Here px
+  injectAny (There y) px = There (injectAny y px)
+
+  public export
   tabulate : (sx : SnocList a) -> ((x : a) -> p x) -> ForAll sx p
   tabulate [<] f = [<]
   tabulate (sx :< x) f = tabulate sx f :< f x
 
   public export
-  rippleAll : {0 xs : SnocList a} -> ForAll xs (p . f) -> ForAll (map f xs) p
+  tabulateElem : (xs : SnocList a) -> ((x : a) -> x `Elem` xs -> p x) -> ForAll xs p
+  tabulateElem [<] f = [<]
+  tabulateElem (sx :< x) f = tabulateElem sx (\y, pos => f y (There pos)) :< f x Here
+
+  public export
+  rippleAll : {0 xs : SnocList a} -> {0 f : a -> b} -> ForAll xs (p . f) -> ForAll (map f xs) p
   rippleAll [<] = [<]
   rippleAll (sx :< x) = rippleAll sx :< x
+
+  public export
+  rippleAny : {0 xs : SnocList a} -> {0 f : a -> b} -> ForAny xs (p . f) -> ForAny (map f xs) p
+  rippleAny (Here x) = Here x
+  rippleAny (There x) = There (rippleAny x)
 
   public export
   unrippleAll : {xs : SnocList a} -> {0 f : a -> b} -> ForAll (map f xs) p -> ForAll xs (p . f)
@@ -315,6 +331,16 @@ fPsh.evalSum w [< u, rho] =
                 (\w1,x,rho => fPsh.map (cotuple rho idRen) x)
                 u
                 rho
+
+(.currySum) : {ws : SnocList World} -> {f : Family} -> (fPsh : DAlg f) ->
+  (FamProd [< f, FamSum (map Env ws)] -|> g) -> f -|> g ^ ws
+fPsh.currySum {ws = [<]} alpha w u = [<]
+fPsh.currySum {ws = ws' :< w'} alpha w u =
+  rippleAll (tabulateElem (ws' :< w')
+  (\w1, pos => alpha (w1 ++ w) [< fPsh.map inr u, rippleAny {xs = ws' :< w'} {f = Env} (injectAny pos inl)]))
+
+(.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (gPsh : DAlg g) ->
+  (f -|> g ^ ws) -> (FamProd [< f, FamSum (map Env ws)] -|> g)
 
 data (.Free) : Signature -> Family -> Family where
   Return : f -|> sig.Free f
