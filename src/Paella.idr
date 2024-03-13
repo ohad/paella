@@ -72,6 +72,9 @@ namespace Data.SnocList.Quantifiers
   applyAnyErased f (sx :< x) (Here  u  ) = Here  (f _ x u)
   applyAnyErased f (sx :< x) (There pos) = There (applyAnyErased f sx pos)
 
+  public export
+  forgetAny : {0 sx : SnocList a} -> Any (const type) sx -> type
+  forgetAny pos = (toExists pos).snd
 
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type
@@ -302,8 +305,7 @@ BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho => applyAny (\f, coalg => coalg
        FamProd [< f ^ ws, FamSum (map Env ws)] -|> f
 fPsh.evalSum w [< u, rho] =
   let (u', rho') = (unrippleAll u, unrippleAny rho)
-      applied = applyAny (\w1,x,rho => fPsh.map (cotuple rho idRen) x) u' rho'
-  in snd (toExists applied)
+  in forgetAny $ applyAny (\w1,x,rho => fPsh.map (cotuple rho idRen) x) u' rho'
 
 data (.Free) : Signature -> Family -> Family where
   Return : f -|> sig.Free f
