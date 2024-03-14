@@ -378,12 +378,23 @@ BoxCoalgFree coalg = MkBoxCoalg $ \w, term, w', rho =>
 sig.AlgebraOver f = ForAll sig $ \op =>
   f ^ op.Arity -|> (op.Args).shift f
 
+smartOp' : (sig : Signature) -> (op : OpSig) -> op `Elem` sig ->
+  (f : Family) -> (BoxCoalg f) ->
+  FamProd [< Env op.Args, (sig.Free f) ^ op.Arity] -|> sig.Free f
+
+
+smartOp : (sig : Signature) -> (op : OpSig) -> op `Elem` sig ->
+  (f : Family) -> (BoxCoalg f) ->
+  (sig.Free f) ^ op.Arity -|> (op.Args).shift (sig.Free f)
+smartOp sig op pos f coalg =
+  let freeCoalg = (BoxCoalgFree coalg)
+      expAlg = cast {to = DAlg (sig.Free f ^ op.Arity)}
+             $ ArityExponential {ws = op.Arity, f = sig.Free f} freeCoalg
+  in expAlg.curry' (smartOp' sig op pos f coalg)
+
+
 TermAlgebra : (sig : Signature) -> (f : Family) -> (BoxCoalg f) -> sig.AlgebraOver (sig.Free f)
-TermAlgebra sig f coalg = tabulateElem sig $ \op,pos,w,env =>
-  let freeAlg = cast {from = BoxCoalg (sig.Free f), to = DAlg (sig.Free f)} (BoxCoalgFree coalg)
-      cur = freeAlg.curry' ?alpha w
-      shed = Op pos
-  in ?res
+TermAlgebra sig f coalg = tabulateElem sig $ \op,pos => smartOp sig op pos f coalg
 
 test : String
 test = "Hello from Idris2!"
