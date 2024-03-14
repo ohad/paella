@@ -87,6 +87,26 @@ namespace Data.SnocList.Quantifiers
     All p (map f sx) -> Any q (map g sx) -> Any r sx
   applyMapAllAny h su pos = applyAny h (unrippleAll su) (unrippleAny pos)
 
+  public export
+  zipPropertyWithRelevant : {xs : SnocList _} ->
+    ((x : _) -> p x -> q x -> r x) -> All p xs -> All q xs -> All r xs
+  zipPropertyWithRelevant f [<] vs = [<]
+  zipPropertyWithRelevant f (u :< us) (v :< vs) = zipPropertyWithRelevant f u v :< f _ us vs
+
+  public export
+  mapPropertyWithRelevant : {xs : SnocList _} ->
+    ((x : _) -> p x -> q x) -> All p xs -> All q xs
+  mapPropertyWithRelevant f [<] = [<]
+  mapPropertyWithRelevant f (sy :< y) = mapPropertyWithRelevant f sy :< f _ y
+
+
+
+  public export
+  mapAll : {sx : SnocList a} ->
+    ((x : a) -> (p . f) x -> (q . g) x) ->
+    All p (map f sx) -> All q (map g sx)
+  mapAll h su = rippleAll $ mapPropertyWithRelevant h (unrippleAll su)
+
   -- For completeness
 
   public export
@@ -258,11 +278,6 @@ Ex21 = let w : World
            v = There $ There $ There $ There Here
        in [< z , y , v]
 
-zipPropertyWithRelevant : {xs : SnocList _} ->
-  ((x : _) -> p x -> q x -> r x) -> All p xs -> All q xs -> All r xs
-zipPropertyWithRelevant f [<] vs = [<]
-zipPropertyWithRelevant f (u :< us) (v :< vs) = zipPropertyWithRelevant f u v :< f _ us vs
-
 ||| Presheaf structure of product presheaf
 BoxCoalgProd : {sf : SnocList Family} -> ForAll sf (\f => BoxCoalg f) ->
   BoxCoalg $ FamProd sf
@@ -348,6 +363,11 @@ fPsh.currySum {ws = ws' :< w'} alpha w u =
 gPsh.uncurrySum beta w [< u, rho] =
   forgetAny $ applyMapAllAny (\w1, x, rho' => gPsh.map (cotuple rho' idRen) x) (beta w u) rho
 
+expMap : {ws : SnocList World} ->
+  {f,g : Family} ->
+  (f -|> g) -> (f ^ ws) -|> (g ^ ws)
+expMap alpha w sx = mapAll (\x, y => alpha (x ++ w) y) sx
+
 data (.Free) : Signature -> Family -> Family where
   Return : f -|> sig.Free f
   Op : {op : OpSig} ->
@@ -359,11 +379,6 @@ data (.Free) : Signature -> Family -> Family where
     -- Continuation
     ((sig.Free f) ^ op.Arity) w ->
     sig.Free f w
-
-mapPropertyWithRelevant : {xs : SnocList _} ->
-  ((x : _) -> p x -> q x) -> All p xs -> All q xs
-mapPropertyWithRelevant f [<] = [<]
-mapPropertyWithRelevant f (sy :< y) = mapPropertyWithRelevant f sy :< f _ y
 
 BoxCoalgFree : {sig : Signature} -> {f : Family} -> BoxCoalg f -> BoxCoalg (sig.Free f)
 BoxCoalgFree coalg = MkBoxCoalg $ \w, term, w', rho =>
@@ -395,6 +410,21 @@ smartOp sig op pos f coalg =
 
 TermAlgebra : (sig : Signature) -> (f : Family) -> (BoxCoalg f) -> sig.AlgebraOver (sig.Free f)
 TermAlgebra sig f coalg = tabulateElem sig $ \op,pos => smartOp sig op pos f coalg
+
+pure : {sig : Signature} -> {f : Family} -> f -|> sig.Free f
+pure = Return
+
+(.fold) : {sig : Signature} -> {f,g : Family} ->
+  sig.AlgebraOver g ->
+  --(BoxCoalg f) ->
+  (f -|> g) ->
+  sig.Free f -|> g
+a.fold env w (Return w x  ) = env w x
+a.fold env w (Op pos arg k) =
+  let --foo = mapProperty (\arg => ?h1)
+      shed = indexAll pos a w
+  in ?h1_1
+
 
 test : String
 test = "Hello from Idris2!"
