@@ -159,6 +159,9 @@ infixr 1 -|>, =|>
 (-|>) : (f, g : Family) -> Type
 f -|> g = (w : World) -> f w -> g w
 
+idFam : {f : Family} -> f -|> f
+idFam w x = x
+
 PresheafOver : Family -> Type
 PresheafOver f = {w1, w2 : World} -> (rho : w1 ~> w2) ->
   f w1 -> f w2
@@ -410,7 +413,7 @@ pure = Return
 
 (.fold) : {sig : Signature} -> {f,g : Family} ->
   sig.AlgebraOver g ->
-  (DAlg g) ->
+  BoxCoalg g ->
   (f -|> g) ->
   sig.Free f -|> g
 a.fold gPsh env w (Return w x  ) = env w x
@@ -418,7 +421,18 @@ a.fold gPsh env w (Op {op = op} pos arg k) =
   let fold = a.fold gPsh env
       g_op = indexAll pos a w
       folded = g_op (expMap {ws = op.Arity} fold w k)
-  in gPsh.eval w [< folded, arg]
+  in (cast {to = DAlg g} gPsh).eval w [< folded, arg]
+
+(.extend) :  {sig : Signature} -> {f,g : Family} -> BoxCoalg g ->
+  (f -|> sig.Free g) -> (sig.Free f -|> sig.Free g)
+gPsh.extend alpha =
+  let alg = TermAlgebra sig g gPsh
+      freePsh = BoxCoalgFree gPsh
+  in alg.fold freePsh alpha
+
+(.join) : {sig : Signature} -> {f : Family} -> BoxCoalg f ->
+  sig.Free (sig.Free f) -|> sig.Free f
+fPsh.join = fPsh.extend idFam
 
 test : String
 test = "Hello from Idris2!"
