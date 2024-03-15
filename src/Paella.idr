@@ -121,15 +121,12 @@ namespace Data.SnocList.Quantifiers
 
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type
-data A = P1 | P2 | P3
+data A = P
 
 ||| A 0-th order context, operation's arities will be a
 ||| finite list of worlds.
 World : Type
 World = SnocList A
-
-Ex1 : World
-Ex1 = [< P2 , P3, P2]
 
 ||| A `x : Var a w` is a first-order variable of paramter type `a` in `w`
 data Var : A -> World -> Type where
@@ -263,24 +260,6 @@ w1.shiftCoalg {f} boxCoalg = cast (w1.shiftAlg $ cast {to = DAlg f} boxCoalg)
 FamProd : SnocList Family -> Family
 FamProd sf w = ForAll sf $ \f => f w
 
-Ex2 : Family
-Ex2 = FamProd [< Var P1 , Var P2 , Var P3 ]
-
-Ex21 : Ex2 [< P3, P2, P1, P2, P3]
-Ex21 = let w : World
-           w = [< P3, P2, P1, P2, P3]
-           x : Var P3 w
-           x = Here
-           y : Var P2 w
-           y = There Here
-           z : Var P1 w
-           z = There $ There Here
-           u : Var P2 w
-           u = There $ There $ There Here
-           v : Var P3 w
-           v = There $ There $ There $ There Here
-       in [< z , y , v]
-
 ||| Presheaf structure of product presheaf
 BoxCoalgProd : {sf : SnocList Family} -> ForAll sf (\f => BoxCoalg f) ->
   BoxCoalg $ FamProd sf
@@ -314,12 +293,6 @@ record OpSig where
   constructor MkOpSig
   Args  : World
   Arity : SnocList World
-
-forkType : OpSig
-forkType = MkOpSig
-  { Args = [<]
-  , Arity = [< [< P1], [<]]
-  }
 
 Signature : Type
 Signature = List OpSig
@@ -433,6 +406,124 @@ gPsh.extend alpha =
 (.join) : {sig : Signature} -> {f : Family} -> BoxCoalg f ->
   sig.Free (sig.Free f) -|> sig.Free f
 fPsh.join = fPsh.extend idFam
+
+||| Type of reading a bit:
+||| ? : [[], a, []]
+readType : OpSig
+readType = MkOpSig
+  { Args = [< P]
+  , Arity = [< [<], [<]]
+  }
+
+||| Type of writing a 0:
+||| w_0 : [a, []]
+write0Type : OpSig
+write0Type = MkOpSig
+  { Args = [< P]
+  , Arity = [< [<]]
+  }
+
+||| Type of writing a 1:
+||| w_1 : [a, []]
+write1Type : OpSig
+write1Type = MkOpSig
+  { Args = [< P]
+  , Arity = [< [<]]
+  }
+
+||| Type of equality testing:
+||| ?_= : [[], a, a, []]
+equalTestType : OpSig
+equalTestType = MkOpSig
+  { Args = [< P, P]
+  , Arity = [< [<], [<]]
+  }
+
+||| Type of restriction (new) to 0:
+||| nu_0 : [[a]]
+restrict0Type : OpSig
+restrict0Type = MkOpSig
+  { Args = [< ]
+  , Arity = [< [< P]]
+  }
+
+||| Type of restriction (new) to 1:
+||| nu_1 : [[a]]
+restrict1Type : OpSig
+restrict1Type = MkOpSig
+  { Args = [< ]
+  , Arity = [< [< P]]
+  }
+
+LSSig : Signature
+LSSig = [
+  readType,
+  write0Type,
+  write1Type,
+  equalTestType,
+  restrict0Type,
+  restrict1Type
+]
+
+LSAlgebra : (f : Family) -> Type
+LSAlgebra = LSSig .AlgebraOver
+
+LSFreeMonad : (f : Family) -> Family
+LSFreeMonad = LSSig .Free
+
+LSTermAlgebra : (f : Family) -> (BoxCoalg f) -> LSAlgebra (LSFreeMonad f)
+LSTermAlgebra f fPsh = TermAlgebra LSSig f fPsh
+
+read : {f : Family} -> (BoxCoalg f) ->
+  FamProd [< LSFreeMonad f, Env [< P], LSFreeMonad f] -|> LSFreeMonad f
+read fPsh w [< k0, p, k1] =
+  let alg = LSTermAlgebra f fPsh
+      freePsh = cast
+        {to = DAlg (LSFreeMonad f)}
+        (BoxCoalgFree {sig = LSSig} fPsh)
+      op = indexAll Here alg
+  in freePsh.uncurry op w [< [< freePsh.map inr k0, freePsh.map inr k1], p]
+
+write : {f : Family} -> (BoxCoalg f) -> Bool ->
+  FamProd [< Env [< P], LSFreeMonad f] -|> LSFreeMonad f
+write fPsh bit w [< p, k] =
+  let alg = LSTermAlgebra f fPsh
+      freePsh = cast
+        {to = DAlg (LSFreeMonad f)}
+        (BoxCoalgFree {sig = LSSig} fPsh)
+      -- Don't know how to move the if up (probably need to set some implicits)
+      op0 = indexAll (There Here) alg
+      impl0 = freePsh.uncurry op0 w [< [< freePsh.map inr k], p]
+      op1 = indexAll (There $ There Here) alg
+      impl1 = freePsh.uncurry op1 w [< [< freePsh.map inr k], p]
+  in if bit then impl1 else impl0
+
+equal : {f : Family} -> (BoxCoalg f) ->
+  FamProd [< LSFreeMonad f, Env [< P], Env [< P], LSFreeMonad f] -|>
+  LSFreeMonad f
+equal fPsh w [< k0, p, q, k1] =
+  let alg = LSTermAlgebra f fPsh
+      freePsh = cast
+        {to = DAlg (LSFreeMonad f)}
+        (BoxCoalgFree {sig = LSSig} fPsh)
+      op = indexAll (There $ There $ There Here) alg
+      -- I think this is the correct thing to do
+      pq = cotuple p q
+  in freePsh.uncurry op w [< [< freePsh.map inr k0, freePsh.map inr k1], pq]
+
+new : {f : Family} -> (BoxCoalg f) -> Bool ->
+  [< P].shift (LSFreeMonad f) -|> LSFreeMonad f
+new fPsh bit w k =
+  let alg = LSTermAlgebra f fPsh
+      freePsh = cast
+        {to = DAlg (LSFreeMonad f)}
+        (BoxCoalgFree {sig = LSSig} fPsh)
+      -- Same issue as above
+      op0 = indexAll (There $ There $ There $ There Here) alg
+      impl0 = freePsh.uncurry op0 w [< [< k], inr]
+      op1 = indexAll (There $ There $ There $ There $ There Here) alg
+      impl1 = freePsh.uncurry op1 w [< [< k], inr]
+  in if bit then impl1 else impl0
 
 test : String
 test = "Hello from Idris2!"
