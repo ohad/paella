@@ -410,15 +410,15 @@ pure = Return
 
 (.fold) : {sig : Signature} -> {f,g : Family} ->
   sig.AlgebraOver g ->
-  --(BoxCoalg f) ->
+  (DAlg g) ->
   (f -|> g) ->
   sig.Free f -|> g
-a.fold env w (Return w x  ) = env w x
-a.fold env w (Op pos arg k) =
-  let --foo = mapProperty (\arg => ?h1)
-      shed = indexAll pos a w
-  in ?h1_1
-
+a.fold gPsh env w (Return w x  ) = env w x
+a.fold gPsh env w (Op {op = op} pos arg k) =
+  let fold = a.fold gPsh env
+      g_op = indexAll pos a w
+      folded = g_op (expMap {ws = op.Arity} fold w k)
+  in gPsh.eval w [< folded, arg]
 
 test : String
 test = "Hello from Idris2!"
