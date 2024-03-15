@@ -474,9 +474,9 @@ LSFreeMonad = LSSig .Free
 LSTermAlgebra : (f : Family) -> (BoxCoalg f) -> LSAlgebra (LSFreeMonad f)
 LSTermAlgebra f fPsh = TermAlgebra LSSig f fPsh
 
-read : {f : Family} -> (BoxCoalg f) ->
+read : {f : Family} -> {auto fPsh : BoxCoalg f} ->
   FamProd [< LSFreeMonad f, Env [< P], LSFreeMonad f] -|> LSFreeMonad f
-read fPsh w [< k0, p, k1] =
+read w [< k0, p, k1] =
   let alg = LSTermAlgebra f fPsh
       freePsh = cast
         {to = DAlg (LSFreeMonad f)}
@@ -484,9 +484,9 @@ read fPsh w [< k0, p, k1] =
       op = indexAll Here alg
   in freePsh.uncurry op w [< [< freePsh.map inr k0, freePsh.map inr k1], p]
 
-write : {f : Family} -> (BoxCoalg f) -> Bool ->
+write : {f : Family} -> {auto fPsh : BoxCoalg f} -> Bool ->
   FamProd [< Env [< P], LSFreeMonad f] -|> LSFreeMonad f
-write fPsh bit w [< p, k] =
+write bit w [< p, k] =
   let alg = LSTermAlgebra f fPsh
       freePsh = cast
         {to = DAlg (LSFreeMonad f)}
@@ -498,10 +498,10 @@ write fPsh bit w [< p, k] =
       impl1 = freePsh.uncurry op1 w [< [< freePsh.map inr k], p]
   in if bit then impl1 else impl0
 
-equal : {f : Family} -> (BoxCoalg f) ->
+equal : {f : Family} -> {auto fPsh : BoxCoalg f} ->
   FamProd [< LSFreeMonad f, Env [< P], Env [< P], LSFreeMonad f] -|>
   LSFreeMonad f
-equal fPsh w [< k0, p, q, k1] =
+equal w [< k0, p, q, k1] =
   let alg = LSTermAlgebra f fPsh
       freePsh = cast
         {to = DAlg (LSFreeMonad f)}
@@ -511,9 +511,9 @@ equal fPsh w [< k0, p, q, k1] =
       pq = cotuple p q
   in freePsh.uncurry op w [< [< freePsh.map inr k0, freePsh.map inr k1], pq]
 
-new : {f : Family} -> (BoxCoalg f) -> Bool ->
+new : {f : Family} -> {auto fPsh : BoxCoalg f} -> Bool ->
   [< P].shift (LSFreeMonad f) -|> LSFreeMonad f
-new fPsh bit w k =
+new bit w k =
   let alg = LSTermAlgebra f fPsh
       freePsh = cast
         {to = DAlg (LSFreeMonad f)}
@@ -524,6 +524,10 @@ new fPsh bit w k =
       op1 = indexAll (There $ There $ There $ There $ There Here) alg
       impl1 = freePsh.uncurry op1 w [< [< k], inr]
   in if bit then impl1 else impl0
+
+example : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
+  Env [< P] w -> LSFreeMonad f w -> LSFreeMonad f w
+example w env k = read w [< k, env, k]
 
 test : String
 test = "Hello from Idris2!"
