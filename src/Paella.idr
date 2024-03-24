@@ -597,32 +597,76 @@ extendHeap {w} w' [< heap , init] =
 record Private (f : Family) (w : World) where
   constructor Hide
   ctx : World
-  val : f ctx
-  weaken : w ~> ctx
+  val : f (ctx ++ w)
+
+lemma : (w : World) -> w = [<] ++ w
+lemma [<] = Refl
+lemma (w :< x) = cong (:< x) $ lemma w
 
 namespace Private
   public export
   pure : {f : Family} -> f -|> Private f
-  pure w x = Hide {ctx = w, val = x, weaken = idRen}
+  pure w x = Hide {ctx = [<], val =
+    replace {p = f}
+      -- I'm going to regret this...
+      (lemma w)
+      x
+      }
 
--- Need the local independence coproduct
+{- The local independent coproduct completes a span of maps:
+        rho2                   rho2
+     w0 ---> w2            w0 ---> w2
+ rho1|            =>  rho1 |       | rho1'
+     v                     v       V
+     w1                    w1 ---> w3
+                              rho2'
+   in an independent way. The result is indeed a pushout,
+   and in fact a pullback too, but that's not the correct
+   universal property to work off of.
 
-PrivateCoal : (coalg : BoxCoalg f) -> BoxCoalg (Private f)
+   Let the square be rho : w0 -> w3
+
+   The calculation becomes more complicated because rho2
+   and rho1 may identify different elements of w0:
+
+   rho1 x = rho1 y
+   rho2 x = rho2 z
+
+   and therefore the square must equate y and z:
+   rho y = rho x = rho z
+
+   The calculation is, in general, expensive, but
+   if we know that, say, rho1 is an injection, e.g.:
+
+   rho1 : w0 -> w ++ w0
+
+   then it is easier to calculate:
+           rho2
+        w0 ---> w2
+    inl |       | inr
+        v       V
+      w+w0 ---> w + w2
+        w + rho2
+-}
+
+PrivateCoal : {f : Family} ->
+  (coalg : BoxCoalg f) -> BoxCoalg (Private f)
 PrivateCoal coalg = MkBoxCoalg $ \w, hidden, w', rho => Hide
-  { ctx = ?needCtx
-  , val = ?promoteval
-  , weaken = ?weakeningVal
+  { ctx = hidden.ctx
+  , val = coalg.map (Paella.bimap idRen rho) hidden.val
   }
 
 LSHandlerCarrier : (f : Family) -> Family
 LSHandlerCarrier f = Heap -% Private f
-{-
-LSHandlerPsh : (coalg : BoxCoalg f) -> BoxCoalg (Heap -% f)
+
+LSHandlerPsh : (coalg : BoxCoalg f) ->
+  BoxCoalg $ LSHandlerCarrier f
 LSHandlerPsh coalg = ExpCoalg
 
 val : {f : Family} -> {coalg : BoxCoalg f} ->
   coalg =|> (LSHandlerPsh coalg)
-val = coalg.map.abst $ \w, [< v, heap] => v
+val = coalg.map.abst $ \w, [< v, heap] =>
+  Private.pure {f} w v
 
 -- Heap's LSAlgebra structure
 LSalg : {f : Family} -> {coalg : BoxCoalg f} ->
@@ -640,7 +684,7 @@ LSalg = MkAlgebraOver
        in eval shape [< kont shape [< rho , ()] , newHeap]
   , -- new
     \roots, [< kont, newval], shape, [< rho, heap] =>
-      let shed = extendHeap {w = [< ConsCell]} shape
+      let newheap = extendHeap {w = [< ConsCell]} shape
                      [< heap , [<
                        TypeOfFunctoriality ConsCell
                          (Paella.bimap idRen rho)
@@ -649,10 +693,13 @@ LSalg = MkAlgebraOver
           newloc : Var ConsCell $ [< ConsCell] ++ shape
                  := inl _ Here
           shed2 = kont ([< ConsCell] ++ shape)
-                       [< inr . rho , newloc]
+                        [< inr . rho , newloc]
+                        ([< ConsCell] ++ shape)
+                        (?h189)
       -- Can't quite tie the knot --- need privatisation
-      in shed2 shape [< ?h189 , ?h3828]
+      in ?h1819189 --shed2 shape [< ?h189 , ?h3828]
   ]
+{-
 
 
 {-
