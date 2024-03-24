@@ -121,7 +121,7 @@ namespace Data.SnocList.Quantifiers
 
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type
-data A = P
+data A = ConsCell
 
 ||| A 0-th order context, operation's arities will be a
 ||| finite list of worlds.
@@ -479,31 +479,30 @@ gPsh.extend alpha = (TermAlgebra g gPsh).fold alpha
 (.join) : {sig : Signature} -> {f : Family} -> BoxCoalg f ->
   sig.Free (sig.Free f) -|> sig.Free f
 fPsh.join = fPsh.extend idFam
-{-
-||| Type of reading a bit:
-||| ? : [[], a, []]
-readType : OpSig
-readType = MkOpSig
-  { Args = [< P]
-  , Arity = [< [<], [<]]
+
+-- Postulate: each parameter has a type
+-- For now, just cons cells
+TypeOf : A -> Family
+TypeOf ConsCell =
+  Maybe . (FamProd [< const String, Var ConsCell])
+
+||| Type of reading an A-cell
+readType : A -> OpSig
+readType a = MkOpSig
+  { Args = Var a
+  , Arity = TypeOf a
   }
 
-||| Type of writing a 0:
+||| Type of writing an a
 ||| w_0 : [a, []]
-write0Type : OpSig
-write0Type = MkOpSig
-  { Args = [< P]
-  , Arity = [< [<]]
+writeType : A -> OpSig
+writeType a = MkOpSig
+  { Args = FamProd [< Var a, TypeOf a]
+  , Arity = const ()
   }
 
-||| Type of writing a 1:
-||| w_1 : [a, []]
-write1Type : OpSig
-write1Type = MkOpSig
-  { Args = [< P]
-  , Arity = [< [<]]
-  }
 
+{-
 ||| Type of equality testing:
 ||| ?_= : [[], a, a, []]
 equalTestType : OpSig
@@ -511,32 +510,47 @@ equalTestType = MkOpSig
   { Args = [< P, P]
   , Arity = [< [<], [<]]
   }
-
-||| Type of restriction (new) to 0:
-||| nu_0 : [[a]]
-restrict0Type : OpSig
-restrict0Type = MkOpSig
-  { Args = [< ]
-  , Arity = [< [< P]]
-  }
-
-||| Type of restriction (new) to 1:
-||| nu_1 : [[a]]
-restrict1Type : OpSig
-restrict1Type = MkOpSig
-  { Args = [< ]
-  , Arity = [< [< P]]
+-}
+||| Allocate a fresh cell storing an a value
+newType : A -> OpSig
+newType a = MkOpSig
+  { Args = [< a].shift (TypeOf a)
+  , Arity = Var a
   }
 
 LSSig : Signature
 LSSig = [
-  readType,
-  write0Type,
-  write1Type,
-  equalTestType,
-  restrict0Type,
-  restrict1Type
+  readType ConsCell,
+  writeType ConsCell,
+  newType ConsCell
 ]
+
+Heaplet : (shape : World) -> Family
+Heaplet shape = FamProd (map TypeOf shape)
+
+HeapletCoalg : {shape : World} -> BoxCoalg (Heaplet shape)
+
+Heap : Family
+Heap w = Heaplet w w
+
+Ex1 : Heap [< ConsCell, ConsCell, ConsCell]
+Ex1 = [< Just [< "first of singleton", There Here]
+      ,  Nothing
+      ,  Just [< "loop" , Here]
+      ]
+
+extendHeap : {w : World} ->
+  FamProd [< Heap , w.shift $ Heaplet w ] -|> w.shift Heap
+extendHeap {w} w' [< heap , init] =
+  let u = unrippleAll $ (HeapletCoalg {shape = w'}).map
+           (inr {w1 = w}) heap
+      v = unrippleAll init
+     -- Probably terrible performance, but meh
+  in rippleAll (v ++ u)
+
+
+
+{-
 
 LSAlgebra : (f : Family) -> Type
 LSAlgebra = LSSig .AlgebraOver
