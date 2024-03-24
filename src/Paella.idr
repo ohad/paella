@@ -29,6 +29,14 @@ namespace Data.List.Quantifiers
   tabulateElem (x :: xs) f =
     f x Here :: tabulateElem xs (\y, pos => f y (There pos))
 
+  public export
+  mapPropertyWithRelevant : {xs : List _} ->
+    ((x : _) -> p x -> q x) -> All p xs -> All q xs
+  mapPropertyWithRelevant f [] = []
+  mapPropertyWithRelevant f (y :: ys) =
+    f _ y :: mapPropertyWithRelevant f ys
+
+
 namespace Data.SnocList.Quantifiers
   public export
   ForAny :  SnocList a -> (0 _ : (a -> Type)) -> Type
@@ -446,6 +454,16 @@ BoxCoalgFree sigFunc coalg = MkBoxCoalg $ \w, term, w', rho =>
 sig.AlgebraOver f = ForAll sig $ \op =>
   (op.Arity -% f) -|> (op.Args -% f)
 
+MkAlgebraOver : {sig : Signature} -> {f : Family} ->
+  (ForAll sig $ \op =>
+    (FamProd [< op.Arity -% f , op.Args] -|> f))
+  -> sig.AlgebraOver f
+MkAlgebraOver = mapPropertyWithRelevant
+  (\x => ExpCoalg .map.abst)
+
+
+
+
 curryOp : (sig : Signature) ->
   (f : Family) -> (BoxCoalg f) ->
   (op : OpSig) -> op `Elem` sig ->
@@ -528,6 +546,14 @@ LSSig = [
 Heaplet : (shape : World) -> Family
 Heaplet shape = FamProd (map TypeOf shape)
 
+infix 3 !!
+
+(!!) : Heaplet shape w -> Var a shape ->
+  TypeOf a w
+(h :< x) !! Here = x
+[<]      !! (There pos) impossible
+(h :< x) !! (There pos) = h !! pos
+
 HeapletCoalg : {shape : World} -> BoxCoalg (Heaplet shape)
 
 Heap : Family
@@ -548,6 +574,29 @@ extendHeap {w} w' [< heap , init] =
      -- Probably terrible performance, but meh
   in rippleAll (v ++ u)
 
+LSHandlerCarrier : (f : Family) -> Family
+LSHandlerCarrier f = Heap -% f
+
+LSHandlerPsh : (coalg : BoxCoalg f) -> BoxCoalg (Heap -% f)
+LSHandlerPsh coalg = ExpCoalg
+
+val : {f : Family} -> {coalg : BoxCoalg f} ->
+  coalg =|> (LSHandlerPsh coalg)
+val = coalg.map.abst $ \w, [< v, heap] => v
+
+-- Algebra structure
+LSalg : {f : Family} -> {coalg : BoxCoalg f} ->
+  LSSig .AlgebraOver (LSHandlerCarrier f)
+LSalg = MkAlgebraOver
+  [ -- readType
+     \roots, [< kont, loc], shape, [< rho, heap] =>
+       let result = heap !! (rho _ loc)
+       in eval shape [< kont shape [< rho , result] , heap]
+  , -- writeType
+    \roots, [< kont, [<loc, newval]], shape, [< rho, heap] =>
+       ?h2
+  , ?h3
+  ]
 
 
 {-
