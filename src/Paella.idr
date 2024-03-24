@@ -594,11 +594,29 @@ extendHeap {w} w' [< heap , init] =
      -- Probably terrible performance, but meh
   in rippleAll (v ++ u)
 
--- Need privatisation, alas
+record Private (f : Family) (w : World) where
+  constructor Hide
+  ctx : World
+  val : f ctx
+  weaken : w ~> ctx
+
+namespace Private
+  public export
+  pure : {f : Family} -> f -|> Private f
+  pure w x = Hide {ctx = w, val = x, weaken = idRen}
+
+-- Need the local independence coproduct
+
+PrivateCoal : (coalg : BoxCoalg f) -> BoxCoalg (Private f)
+PrivateCoal coalg = MkBoxCoalg $ \w, hidden, w', rho => Hide
+  { ctx = ?needCtx
+  , val = ?promoteval
+  , weaken = ?weakeningVal
+  }
 
 LSHandlerCarrier : (f : Family) -> Family
-LSHandlerCarrier f = Heap -% f
-
+LSHandlerCarrier f = Heap -% Private f
+{-
 LSHandlerPsh : (coalg : BoxCoalg f) -> BoxCoalg (Heap -% f)
 LSHandlerPsh coalg = ExpCoalg
 
@@ -632,7 +650,7 @@ LSalg = MkAlgebraOver
                  := inl _ Here
           shed2 = kont ([< ConsCell] ++ shape)
                        [< inr . rho , newloc]
-      -- Can't quite tie the know --- need privatisation
+      -- Can't quite tie the knot --- need privatisation
       in shed2 shape [< ?h189 , ?h3828]
   ]
 
