@@ -286,6 +286,8 @@ BoxCoalgProd sbox = MkBoxCoalg $ \w, sx, w', rho =>
 Env : World -> Family
 Env w = (w ~>)
 
+swap : FamProd [< f , g] -|> FamProd [< g, f]
+swap w [< x , y] = [< y , x]
 
 -- (f.shift) is actually an exponential
 (.eval) : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
@@ -405,6 +407,11 @@ expMap : {ws : SnocList World} ->
 expMap alpha w sx = mapAll (\x, y => alpha (x ++ w) y) sx
 -}
 
+expMap :
+  {f,g,e : Family} ->
+  (f -|> g) -> (e -% f) -|> (e -% g)
+expMap {f,g,e} alpha = ExpCoalg .map.abst (alpha .:. eval)
+
 data (.Free) : Signature -> Family -> Family where
   Return : f -|> sig.Free f
   Op : {op : OpSig} ->
@@ -439,8 +446,6 @@ BoxCoalgFree sigFunc coalg = MkBoxCoalg $ \w, term, w', rho =>
 sig.AlgebraOver f = ForAll sig $ \op =>
   (op.Arity -% f) -|> (op.Args -% f)
 
-swap : FamProd [< f , g] -|> FamProd [< g, f]
-swap w [< x , y] = [< y , x]
 curryOp : (sig : Signature) ->
   (f : Family) -> (BoxCoalg f) ->
   (op : OpSig) -> op `Elem` sig ->
@@ -456,31 +461,25 @@ TermAlgebra {sig} f coalg = tabulateElem sig $
 pure : {sig : Signature} -> {f : Family} -> f -|> sig.Free f
 pure = Return
 
-{-
-
 (.fold) : {sig : Signature} -> {f,g : Family} ->
   sig.AlgebraOver g ->
-  BoxCoalg g ->
   (f -|> g) ->
   sig.Free f -|> g
-a.fold gPsh env w (Return w x  ) = env w x
-a.fold gPsh env w (Op {op = op} pos arg k) =
-  let fold = a.fold gPsh env
+a.fold env w (Return w x  ) = env w x
+a.fold env w (Op {op} pos .(w) [< arg, k]) =
+  let fold = a.fold env
       g_op = indexAll pos a w
-      folded = g_op (expMap {ws = op.Arity} fold w k)
-  in (cast {to = DAlg g} gPsh).eval w [< folded, arg]
+      folded = g_op (expMap {e = op.Arity} fold w k)
+  in eval w [< folded, arg]
 
 (.extend) :  {sig : Signature} -> {f,g : Family} -> BoxCoalg g ->
   (f -|> sig.Free g) -> (sig.Free f -|> sig.Free g)
-gPsh.extend alpha =
-  let alg = TermAlgebra sig g gPsh
-      freePsh = BoxCoalgFree gPsh
-  in alg.fold freePsh alpha
+gPsh.extend alpha = (TermAlgebra g gPsh).fold alpha
 
 (.join) : {sig : Signature} -> {f : Family} -> BoxCoalg f ->
   sig.Free (sig.Free f) -|> sig.Free f
 fPsh.join = fPsh.extend idFam
-
+{-
 ||| Type of reading a bit:
 ||| ? : [[], a, []]
 readType : OpSig
