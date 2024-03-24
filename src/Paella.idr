@@ -546,7 +546,7 @@ LSSig = [
 Heaplet : (shape : World) -> Family
 Heaplet shape = FamProd (map TypeOf shape)
 
-infix 3 !!
+infix 3 !! , ::=
 
 (!!) : Heaplet shape w -> Var a shape ->
   TypeOf a w
@@ -554,7 +554,27 @@ infix 3 !!
 [<]      !! (There pos) impossible
 (h :< x) !! (There pos) = h !! pos
 
+record Update (a : A) (shape, w : World) where
+  constructor (::=)
+  loc : Var a shape
+  val : TypeOf a w
+
+(.update) : Heaplet shape w -> Update a shape w -> Heaplet shape w
+(h :< old).update (Here ::= new) = (h :< new)
+[<].update (There pos ::= v) impossible
+(h :< x).update (There pos ::= v) = h.update (pos ::= v) :< x
+
+TypeOfFunctoriality : (a : A) -> PresheafOver $ TypeOf a
+-- Should propagate structure more nicely
+TypeOfFunctoriality ConsCell rho Nothing = Nothing
+TypeOfFunctoriality ConsCell rho (Just [< str , loc]) =
+  Just [< str , rho _ loc]
+
 HeapletCoalg : {shape : World} -> BoxCoalg (Heaplet shape)
+HeapletCoalg = MkBoxCoalg $ \w, heaplet,w',rho =>
+  mapAll
+    (\a => TypeOfFunctoriality a rho)
+    heaplet
 
 Heap : Family
 Heap w = Heaplet w w
@@ -594,8 +614,12 @@ LSalg = MkAlgebraOver
        in eval shape [< kont shape [< rho , result] , heap]
   , -- writeType
     \roots, [< kont, [<loc, newval]], shape, [< rho, heap] =>
-       ?h2
-  , ?h3
+       let newHeap = heap.update
+                     (rho _ loc ::=
+                        TypeOfFunctoriality ConsCell rho newval)
+       in eval shape [< kont shape [< rho , ()] , newHeap]
+  , -- new
+    ?h3
   ]
 
 
