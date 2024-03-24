@@ -289,6 +289,24 @@ fPsh.curry' alpha w u = alpha (w1 ++ w) [< inl, fPsh.map inr u]
   (f -|> w1.shift g) -> (FamProd [< f, Env w1] -|> g)
 gPsh.uncurry beta w [< u, rho] = gPsh.map (cotuple rho idRen) (beta w u)
 
+-- General exponential of presheaves
+infixr 2 -%
+
+public export
+(-%) : (f, g : Family) -> Family
+(f -% g) w = (FamProd [< Env w, f]) -|> g
+
+public export
+eval : FamProd [< f -% g , f] -|> g
+eval w [< alpha , x] = alpha w [< idRen, x]
+
+public export
+(.abst) : {gamma : Family} ->
+  (BoxCoalg gamma) -> (FamProd [< gamma , f ] -|> g) ->
+  gamma -|> (f -% g)
+gCoalg.abst beta w env w2 [< rho , x] =
+  beta w2 [< gCoalg.map rho env , x]
+
 record OpSig where
   constructor MkOpSig
   Args  : World
