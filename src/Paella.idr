@@ -156,6 +156,11 @@ infixr 1 -|>, =|>
 (-|>) : (f, g : Family) -> Type
 f -|> g = (w : World) -> f w -> g w
 
+-- Closed version
+(.elem) : (f : Family) -> Type
+f.elem = (w : World) -> f w
+
+
 idFam : {f : Family} -> f -|> f
 idFam w x = x
 
@@ -219,6 +224,13 @@ namespace Coalgebra
 
 {f : _} -> Cast (BoxCoalg f) (DAlg f) where
   cast coalg = MkDAlg $ \w, closure => coalg.map closure.weaken closure.val
+
+{f : _} -> Cast (PresheafOver f) (BoxCoalg f) where
+  cast psh = MkBoxCoalg $ \w, x, w', rho => psh rho x
+
+{f : _} -> Cast (PresheafOver f) (DAlg f) where
+  cast psh = MkDAlg $ \w, closure =>
+    psh closure.weaken closure.val
 
 ||| Fiore-transform of presheaf exponentiation: f^(Yoneda w1).
 (.shift) : World -> Family -> Family
@@ -302,10 +314,37 @@ eval w [< alpha , x] = alpha w [< idRen, x]
 
 public export
 (.abst) : {gamma : Family} ->
-  (BoxCoalg gamma) -> (FamProd [< gamma , f ] -|> g) ->
+  (PresheafOver gamma) -> (FamProd [< gamma , f ] -|> g) ->
   gamma -|> (f -% g)
-gCoalg.abst beta w env w2 [< rho , x] =
-  beta w2 [< gCoalg.map rho env , x]
+psh.abst beta w env w2 [< rho , x] =
+  beta w2 [< psh rho env , x]
+
+-- Can derive from previous but can cut out hassle
+public export
+abst :
+  (f -|> g) ->
+  (f -% g).elem
+abst f w w' [< rho , x] = f w' x
+
+ExpCoalg : BoxCoalg (f -% g)
+ExpCoalg = MkBoxCoalg $ \w, alpha, w', rho, w'', [< rho' , x] =>
+  alpha w'' [< rho' . rho, x]
+
+(.shiftIntoRepr) : {w0 : World} -> {g : Family} ->
+  (PresheafOver g) ->
+  ((Env w0) -% g) -|> (w0.shift g)
+psh.shiftIntoRepr =
+  (cast {from = BoxCoalg (Env w0 -% g)} $ ExpCoalg).curry
+    {g, f = (Env w0) -% g} $ eval {f = Env w0, g = g}
+
+(.shiftFromRepr) : {w0 : World} -> {g : Family} ->
+  (PresheafOver g) ->
+   (w0.shift g) -|> ((Env w0) -% g)
+psh.shiftFromRepr =
+  let coalg : BoxCoalg g = cast psh
+      algeb = (cast {to = DAlg g} psh).eval
+  in (w0.shiftCoalg coalg).map.abst algeb
+
 
 record OpSig where
   constructor MkOpSig
