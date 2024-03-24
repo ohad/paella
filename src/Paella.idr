@@ -594,6 +594,8 @@ extendHeap {w} w' [< heap , init] =
      -- Probably terrible performance, but meh
   in rippleAll (v ++ u)
 
+-- Need privatisation, alas
+
 LSHandlerCarrier : (f : Family) -> Family
 LSHandlerCarrier f = Heap -% f
 
@@ -604,7 +606,7 @@ val : {f : Family} -> {coalg : BoxCoalg f} ->
   coalg =|> (LSHandlerPsh coalg)
 val = coalg.map.abst $ \w, [< v, heap] => v
 
--- Algebra structure
+-- Heap's LSAlgebra structure
 LSalg : {f : Family} -> {coalg : BoxCoalg f} ->
   LSSig .AlgebraOver (LSHandlerCarrier f)
 LSalg = MkAlgebraOver
@@ -619,7 +621,19 @@ LSalg = MkAlgebraOver
                         TypeOfFunctoriality ConsCell rho newval)
        in eval shape [< kont shape [< rho , ()] , newHeap]
   , -- new
-    ?h3
+    \roots, [< kont, newval], shape, [< rho, heap] =>
+      let shed = extendHeap {w = [< ConsCell]} shape
+                     [< heap , [<
+                       TypeOfFunctoriality ConsCell
+                         (Paella.bimap idRen rho)
+                       newval
+                     ]]
+          newloc : Var ConsCell $ [< ConsCell] ++ shape
+                 := inl _ Here
+          shed2 = kont ([< ConsCell] ++ shape)
+                       [< inr . rho , newloc]
+      -- Can't quite tie the know --- need privatisation
+      in shed2 shape [< ?h189 , ?h3828]
   ]
 
 
