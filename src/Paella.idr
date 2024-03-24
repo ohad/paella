@@ -150,7 +150,7 @@ idRen a x = x
 Family : Type
 Family = World -> Type
 
-infixr 1 -|>, =|>
+infixr 1 -|>, =|>, .:.
 
 -- Family transformation
 (-|>) : (f, g : Family) -> Type
@@ -163,6 +163,9 @@ f.elem = (w : World) -> f w
 
 idFam : {f : Family} -> f -|> f
 idFam w x = x
+
+(.:.) : {f,g,h : Family} -> g -|> h -> f -|> g -> f -|> h
+(beta .:. alpha) w = beta w . alpha w
 
 PresheafOver : Family -> Type
 PresheafOver f = {w1, w2 : World} -> (rho : w1 ~> w2) ->
@@ -348,14 +351,14 @@ psh.shiftFromRepr =
 
 record OpSig where
   constructor MkOpSig
-  Args  : World
-  Arity : SnocList World
+  Args  : Family
+  Arity : Family
 
 Signature : Type
 Signature = List OpSig
 
 infixl 7 ^
-
+{-
 ||| The exponentiation of f by the sum of representables coprod_{w in ws} y(w)
 (^) : Family -> SnocList World -> Family
 f ^ ws = FamProd (map (\w => w.shift f) ws)
@@ -400,46 +403,60 @@ expMap : {ws : SnocList World} ->
   {f,g : Family} ->
   (f -|> g) -> (f ^ ws) -|> (g ^ ws)
 expMap alpha w sx = mapAll (\x, y => alpha (x ++ w) y) sx
+-}
 
 data (.Free) : Signature -> Family -> Family where
   Return : f -|> sig.Free f
   Op : {op : OpSig} ->
-    {w : World} ->
     {f : Family} ->
     op `Elem` sig ->
     -- Argument
-    Env op.Args w ->
-    -- Continuation
-    ((sig.Free f) ^ op.Arity) w ->
-    sig.Free f w
+    FamProd [< op.Args , op.Arity -% sig.Free f]
+    -|> sig.Free f
 
-BoxCoalgFree : {sig : Signature} -> {f : Family} -> BoxCoalg f -> BoxCoalg (sig.Free f)
-BoxCoalgFree coalg = MkBoxCoalg $ \w, term, w', rho =>
+record FunctorialOpSig (op : OpSig) where
+  constructor MkFunOpSig
+  Args  : PresheafOver op.Args
+  Arity : PresheafOver op.Arity
+
+FunctorialSignature : Signature -> Type
+FunctorialSignature sig = ForAll sig $ FunctorialOpSig
+
+BoxCoalgFree : {sig : Signature} -> {f : Family} ->
+  FunctorialSignature sig ->
+  BoxCoalg f -> BoxCoalg (sig.Free f)
+BoxCoalgFree sigFunc coalg = MkBoxCoalg $ \w, term, w', rho =>
   case term of
     Return w1 var => Return w' (coalg.map rho var)
-    Op pos arg cont =>
-      let freeCoalg = BoxCoalgFree {sig = sig} {f = f} coalg
-          recurse = (\x => freeCoalg.map (bimap idRen {w1 = x} {w1' = x} rho))
-      in Op pos (rho . arg) (rippleAll (mapPropertyWithRelevant recurse (unrippleAll cont)))
+    Op pos w [< arg , cont] =>
+      Op pos w'
+        [< (indexAll pos sigFunc).Args rho arg
+        , ExpCoalg .map rho cont]
+
+-- Huh. Didn't need the Arity's functorial action here
 
 (.AlgebraOver) : Signature -> Family -> Type
 sig.AlgebraOver f = ForAll sig $ \op =>
-  f ^ op.Arity -|> (op.Args).shift f
+  (op.Arity -% f) -|> (op.Args -% f)
 
-curryOp : (sig : Signature) -> (f : Family) -> (BoxCoalg f) ->
+swap : FamProd [< f , g] -|> FamProd [< g, f]
+swap w [< x , y] = [< y , x]
+curryOp : (sig : Signature) ->
+  (f : Family) -> (BoxCoalg f) ->
   (op : OpSig) -> op `Elem` sig ->
-  (sig.Free f) ^ op.Arity -|> (op.Args).shift (sig.Free f)
+  op.Arity -% (sig.Free f) -|> (op.Args) -% (sig.Free f)
 curryOp sig f coalg op pos =
-  let freeCoalg = (BoxCoalgFree coalg)
-      expAlg = cast {to = DAlg (sig.Free f ^ op.Arity)}
-             $ ArityExponential {ws = op.Arity, f = sig.Free f} freeCoalg
-  in expAlg.curry' (\w, [< rho, u] => Op {w = w} pos rho u)
+  (ExpCoalg .map).abst (Op pos .:. swap)
 
-TermAlgebra : (sig : Signature) -> (f : Family) -> (BoxCoalg f) -> sig.AlgebraOver (sig.Free f)
-TermAlgebra sig f coalg = tabulateElem sig $ curryOp sig f coalg
+TermAlgebra : {sig : Signature} ->
+  (f : Family) -> (BoxCoalg f) -> sig.AlgebraOver (sig.Free f)
+TermAlgebra {sig} f coalg = tabulateElem sig $
+  curryOp sig f coalg
 
 pure : {sig : Signature} -> {f : Family} -> f -|> sig.Free f
 pure = Return
+
+{-
 
 (.fold) : {sig : Signature} -> {f,g : Family} ->
   sig.AlgebraOver g ->
@@ -588,3 +605,4 @@ example w env k = read w [< k, env, k]
 
 test : String
 test = "Hello from Idris2!"
+-}
