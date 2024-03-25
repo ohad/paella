@@ -691,21 +691,23 @@ LSalg = MkAlgebraOver
        in eval shape [< kont shape [< rho , ()] , newHeap]
   , -- new
     \roots, [< kont, newval], shape, [< rho, heap] =>
-      let newheap = extendHeap {w = [< ConsCell]} shape
+      let newheap : Heap ([< ConsCell] ++ shape)
+                  := extendHeap {w = [< ConsCell]} shape
                      [< heap , [<
                        TypeOfFunctoriality ConsCell
                          (Paella.bimap idRen rho)
                        newval
                      ]]
-          foobar = unrippleAll newheap
           newloc : Var ConsCell $ [< ConsCell] ++ shape
                  := inl _ Here
-          shed2 = kont ([< ConsCell] ++ shape)
-                        [< inr . rho , newloc]
-                        ([< ConsCell] ++ shape)
-                        ([< idRen, newheap])
-      -- Can't quite tie the knot --- need privatisation
-      in hide shed2
+          -- Calculate the result without hiding the new
+          -- location
+          result : Private f ([<ConsCell] ++ shape)
+                 := kont ([< ConsCell] ++ shape)
+                          [< inr . rho , newloc]
+                          ([< ConsCell] ++ shape)
+                          ([< idRen, newheap])
+      in hide result
   ]
 {-
 
