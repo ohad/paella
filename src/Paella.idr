@@ -599,17 +599,13 @@ record Private (f : Family) (w : World) where
   ctx : World
   val : f (ctx ++ w)
 
-lemma : (w : World) -> w = [<] ++ w
-lemma [<] = Refl
-lemma (w :< x) = cong (:< x) $ lemma w
-
 namespace Private
   public export
   pure : {f : Family} -> f -|> Private f
   pure w x = Hide {ctx = [<], val =
     replace {p = f}
       -- I'm going to regret this...
-      (lemma w)
+      (sym $ appendLinLeftNeutral w)
       x
       }
 
@@ -656,6 +652,17 @@ PrivateCoal coalg = MkBoxCoalg $ \w, hidden, w', rho => Hide
   , val = coalg.map (Paella.bimap idRen rho) hidden.val
   }
 
+-- We can hide locations
+hide : {w1,w : World} -> {f : Family} ->
+  Private f (w1 ++ w) -> Private f w
+hide hidden =
+  Hide
+    { ctx = hidden.ctx ++ w1
+    , val = replace {p = f}
+              (appendAssociative (hidden.ctx) w1 w)
+              hidden.val
+    }
+
 LSHandlerCarrier : (f : Family) -> Family
 LSHandlerCarrier f = Heap -% Private f
 
@@ -690,14 +697,15 @@ LSalg = MkAlgebraOver
                          (Paella.bimap idRen rho)
                        newval
                      ]]
+          foobar = unrippleAll newheap
           newloc : Var ConsCell $ [< ConsCell] ++ shape
                  := inl _ Here
           shed2 = kont ([< ConsCell] ++ shape)
                         [< inr . rho , newloc]
                         ([< ConsCell] ++ shape)
-                        (?h189)
+                        ([< idRen, newheap])
       -- Can't quite tie the knot --- need privatisation
-      in ?h1819189 --shed2 shape [< ?h189 , ?h3828]
+      in hide shed2
   ]
 {-
 
