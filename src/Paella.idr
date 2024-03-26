@@ -385,8 +385,8 @@ psh.shiftFromRepr =
   in (w0.shiftCoalg coalg).map.abst algeb
 
 -- Did we not define this already?
-varCoalg : BoxCoalg (Var a)
-
+varCoalg : {a : A} -> BoxCoalg (Var a)
+varCoalg = MkBoxCoalg $ \w, pos, w', rho => rho a pos
 
 record OpSig where
   constructor MkOpSig
