@@ -368,7 +368,7 @@ Signature : Type
 Signature = List OpSig
 
 infixl 7 ^
-{-
+
 ||| The exponentiation of f by the sum of representables coprod_{w in ws} y(w)
 (^) : Family -> SnocList World -> Family
 f ^ ws = FamProd (map (\w => w.shift f) ws)
@@ -409,11 +409,10 @@ fPsh.currySum {ws = ws' :< w'} alpha w u =
 gPsh.uncurrySum beta w [< u, rho] =
   forgetAny $ applyMapAllAny (\w1, x, rho' => gPsh.map (cotuple rho' idRen) x) (beta w u) rho
 
-expMap : {ws : SnocList World} ->
+expMapSumRep : {ws : SnocList World} ->
   {f,g : Family} ->
   (f -|> g) -> (f ^ ws) -|> (g ^ ws)
-expMap alpha w sx = mapAll (\x, y => alpha (x ++ w) y) sx
--}
+expMapSumRep alpha w sx = mapAll (\x, y => alpha (x ++ w) y) sx
 
 expMap :
   {f,g,e : Family} ->
@@ -520,15 +519,6 @@ writeType a = MkOpSig
   }
 
 
-{-
-||| Type of equality testing:
-||| ?_= : [[], a, a, []]
-equalTestType : OpSig
-equalTestType = MkOpSig
-  { Args = [< P, P]
-  , Arity = [< [<], [<]]
-  }
--}
 ||| Allocate a fresh cell storing an a value
 newType : A -> OpSig
 newType a = MkOpSig
@@ -709,71 +699,8 @@ LSalg = MkAlgebraOver
                           ([< idRen, newheap])
       in hide result
   ]
-{-
-
 
 {-
-
-LSAlgebra : (f : Family) -> Type
-LSAlgebra = LSSig .AlgebraOver
-
-LSFreeMonad : (f : Family) -> Family
-LSFreeMonad = LSSig .Free
-
-LSTermAlgebra : (f : Family) -> (BoxCoalg f) -> LSAlgebra (LSFreeMonad f)
-LSTermAlgebra f fPsh = TermAlgebra LSSig f fPsh
-
-read : {f : Family} -> {auto fPsh : BoxCoalg f} ->
-  FamProd [< LSFreeMonad f, Env [< P], LSFreeMonad f] -|> LSFreeMonad f
-read w [< k0, p, k1] =
-  let alg = LSTermAlgebra f fPsh
-      freePsh = cast
-        {to = DAlg (LSFreeMonad f)}
-        (BoxCoalgFree {sig = LSSig} fPsh)
-      op = indexAll Here alg
-  in freePsh.uncurry op w [< [< freePsh.map inr k0, freePsh.map inr k1], p]
-
-write : {f : Family} -> {auto fPsh : BoxCoalg f} -> Bool ->
-  FamProd [< Env [< P], LSFreeMonad f] -|> LSFreeMonad f
-write bit w [< p, k] =
-  let alg = LSTermAlgebra f fPsh
-      freePsh = cast
-        {to = DAlg (LSFreeMonad f)}
-        (BoxCoalgFree {sig = LSSig} fPsh)
-      -- Don't know how to move the if up (probably need to set some implicits)
-      op0 = indexAll (There Here) alg
-      impl0 = freePsh.uncurry op0 w [< [< freePsh.map inr k], p]
-      op1 = indexAll (There $ There Here) alg
-      impl1 = freePsh.uncurry op1 w [< [< freePsh.map inr k], p]
-  in if bit then impl1 else impl0
-
-equal : {f : Family} -> {auto fPsh : BoxCoalg f} ->
-  FamProd [< LSFreeMonad f, Env [< P], Env [< P], LSFreeMonad f] -|>
-  LSFreeMonad f
-equal w [< k0, p, q, k1] =
-  let alg = LSTermAlgebra f fPsh
-      freePsh = cast
-        {to = DAlg (LSFreeMonad f)}
-        (BoxCoalgFree {sig = LSSig} fPsh)
-      op = indexAll (There $ There $ There Here) alg
-      -- I think this is the correct thing to do
-      pq = cotuple p q
-  in freePsh.uncurry op w [< [< freePsh.map inr k0, freePsh.map inr k1], pq]
-
-new : {f : Family} -> {auto fPsh : BoxCoalg f} -> Bool ->
-  [< P].shift (LSFreeMonad f) -|> LSFreeMonad f
-new bit w k =
-  let alg = LSTermAlgebra f fPsh
-      freePsh = cast
-        {to = DAlg (LSFreeMonad f)}
-        (BoxCoalgFree {sig = LSSig} fPsh)
-      -- Same issue as above
-      op0 = indexAll (There $ There $ There $ There Here) alg
-      impl0 = freePsh.uncurry op0 w [< [< k], inr]
-      op1 = indexAll (There $ There $ There $ There $ There Here) alg
-      impl1 = freePsh.uncurry op1 w [< [< k], inr]
-  in if bit then impl1 else impl0
-
 example : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
   Env [< P] w -> LSFreeMonad f w -> LSFreeMonad f w
 example w env k = read w [< k, env, k]
