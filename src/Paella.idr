@@ -10,6 +10,8 @@ import Data.List
 import Data.List.Elem
 import Data.List.Quantifiers
 
+import Data.Fin
+
 namespace Data.List.Quantifiers
   public export
   ForAny :  List a -> (0 _ : (a -> Type)) -> Type
@@ -35,6 +37,24 @@ namespace Data.List.Quantifiers
   mapPropertyWithRelevant f [] = []
   mapPropertyWithRelevant f (y :: ys) =
     f _ y :: mapPropertyWithRelevant f ys
+
+infix 3 !! , ::= , ?!
+
+-- This should be in stdlib somewhere, probably not as infix notation
+
+namespace Data.List.Fin
+  public export
+  (!!) : (xs : List a) -> (Fin (length xs)) -> a
+  [] !! pos impossible
+  (x :: xs) !!  FZ      = x
+  (x :: xs) !! (FS pos) = xs !! pos
+
+  public export
+  (?!) : (xs : List a) -> (i : Fin (length xs)) ->
+         (xs !! i) `Elem` xs
+  [] ?! i impossible
+  (x :: xs) ?!  FZ = Here
+  (x :: xs) ?! (FS pos) = There (xs ?! pos)
 
 
 namespace Data.SnocList.Quantifiers
@@ -247,6 +267,9 @@ namespace Coalgebra
 (.shift) : World -> Family -> Family
 w1.shift f w2 = f (w1 ++ w2)
 
+(.shiftLeft) : World -> Family -> Family
+w1.shiftLeft f w2 = f (w2 ++ w1)
+
 split : {w2 : World} -> Var a (w1 ++ w2) -> Either (Var a w1) (Var a w2)
 split {w2 = [<]     } x = Left x
 split {w2 = pos :< a} Here = Right Here
@@ -264,6 +287,9 @@ cotuple : {w2 : World} -> (w1 ~> w) -> (w2 ~> w) -> w1 ++ w2 ~> w
 cotuple {w2 = [<]    } f g   a  x        = f a x
 cotuple {w2 = w2 :< b} f g .(b) Here     = g b Here
 cotuple {w2 = w2 :< b} f g   a (There x) = cotuple f (\c, y => g c (There y)) a x
+
+swapRen : {w1, w2 : World} -> (w1 ++ w2) ~> (w2 ++ w1)
+swapRen = cotuple inr inl
 
 ||| Monoidal action on maps
 bimap : {w1, w2, w1', w2' : World} -> (w1 ~> w1') -> (w2 ~> w2') -> (w1 ++ w2) ~> (w1' ++ w2')
@@ -357,6 +383,9 @@ psh.shiftFromRepr =
   let coalg : BoxCoalg g = cast psh
       algeb = (cast {to = DAlg g} psh).eval
   in (w0.shiftCoalg coalg).map.abst algeb
+
+-- Did we not define this already?
+varCoalg : BoxCoalg (Var a)
 
 
 record OpSig where
@@ -493,6 +522,14 @@ a.fold env w (Op {op} pos .(w) [< arg, k]) =
   (f -|> sig.Free g) -> (sig.Free f -|> sig.Free g)
 gPsh.extend alpha = (TermAlgebra g gPsh).fold alpha
 
+-- Not sure the elaborator will manange this
+
+(>>=) : {sig : Signature} -> {f,g : Family} ->
+  (coalg : BoxCoalg g)  =>
+  ((w : World) -> sig.Free f w) ->
+  (f -|> sig.Free g) -> (w : World) -> sig.Free g w
+(>>=) xs k w = coalg.extend k w (xs w)
+
 (.join) : {sig : Signature} -> {f : Family} -> BoxCoalg f ->
   sig.Free (sig.Free f) -|> sig.Free f
 fPsh.join = fPsh.extend idFam
@@ -502,6 +539,13 @@ fPsh.join = fPsh.extend idFam
 TypeOf : A -> Family
 TypeOf ConsCell =
   Maybe . (FamProd [< const String, Var ConsCell])
+
+TypeOfFunctoriality : (a : A) -> PresheafOver $ TypeOf a
+-- Should propagate structure more nicely
+TypeOfFunctoriality ConsCell rho Nothing = Nothing
+TypeOfFunctoriality ConsCell rho (Just [< str , loc]) =
+  Just [< str , rho _ loc]
+
 
 ||| Type of reading an A-cell
 readType : A -> OpSig
@@ -533,10 +577,32 @@ LSSig = [
   newType ConsCell
 ]
 
+-- Probably better to define the generic operations generically
+-- and instantiate to these
+
+read : Var ConsCell -|> LSSig .Free (TypeOf ConsCell)
+read w loc =
+  Op (LSSig ?! 0) w
+     [< loc , abst pure w]
+
+write : FamProd [< Var ConsCell , TypeOf ConsCell] -|>
+          LSSig .Free (const ())
+write w locval =
+  Op (LSSig ?! 1) w
+     [< locval , abst pure w]
+
+
+new : FamProd [< [<ConsCell].shiftLeft (TypeOf ConsCell)] -|>
+      LSSig .Free (Var ConsCell)
+new w [<val] =
+  -- move new location to the bottom of the heap
+  let val' = (TypeOfFunctoriality ConsCell)
+        (swapRen {w1 = w, w2 = [<ConsCell]}) val
+  in Op (LSSig ?! 2) w
+    [< val' , abst pure w]
+
 Heaplet : (shape : World) -> Family
 Heaplet shape = FamProd (map TypeOf shape)
-
-infix 3 !! , ::=
 
 (!!) : Heaplet shape w -> Var a shape ->
   TypeOf a w
@@ -553,12 +619,6 @@ record Update (a : A) (shape, w : World) where
 (h :< old).update (Here ::= new) = (h :< new)
 [<].update (There pos ::= v) impossible
 (h :< x).update (There pos ::= v) = h.update (pos ::= v) :< x
-
-TypeOfFunctoriality : (a : A) -> PresheafOver $ TypeOf a
--- Should propagate structure more nicely
-TypeOfFunctoriality ConsCell rho Nothing = Nothing
-TypeOfFunctoriality ConsCell rho (Just [< str , loc]) =
-  Just [< str , rho _ loc]
 
 HeapletCoalg : {shape : World} -> BoxCoalg (Heaplet shape)
 HeapletCoalg = MkBoxCoalg $ \w, heaplet,w',rho =>
@@ -700,11 +760,16 @@ LSalg = MkAlgebraOver
       in hide result
   ]
 
+
+ExProg : LSSig .Free (const $ List String) [<]
+ExProg = do
+  -- I'm sad, this is quite hard to write up
+  let foo = (\w => new _ [< Just [<"first cell", Here]])
+  loc <- \w => foo [<]
+  --loc' <-\w => new w [< Just [<"second cell", Here]]
+  pure _ []
+
 {-
 example : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
   Env [< P] w -> LSFreeMonad f w -> LSFreeMonad f w
 example w env k = read w [< k, env, k]
-
-test : String
-test = "Hello from Idris2!"
--}
