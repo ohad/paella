@@ -602,16 +602,16 @@ infixr 1 >>==
   {gammas : SnocList Family} ->
   {f,g : Family} ->
   (sigFuncs : FunctorialSignature sig) =>
-  (gammaPsh : ForAll gammas PresheafOver) =>
-  (fPsh : PresheafOver f) =>
+  (gammaPsh : ForAll gammas BoxCoalg) =>
+  (fPsh : BoxCoalg f) =>
   (coalg : BoxCoalg g)  =>
   (FamProd gammas -|> sig.Free f) ->
   (FamProd (gammas :< f) -|> sig.Free g) ->
   FamProd gammas -|> sig.Free g
 (>>==) xs k =
-  ((coalg.extendStrength {sigFuncs} {fPsh}
+  ((coalg.extendStrength {sigFuncs} {fPsh = fPsh.map}
                    {gammaPsh =
-                   (BoxCoalgProd $ mapPropertyWithRelevant (\_,psh => cast {from = PresheafOver _} psh) gammaPsh).map})
+                   (BoxCoalgProd $ mapPropertyWithRelevant (\_,psh => psh) gammaPsh).map})
                 (\w,[< env, x] => k w (env :< x)))
       .:. tuple [<\_ => id,  xs]
 (.join) : {sig : Signature} -> {f : Family} -> BoxCoalg f ->
@@ -622,13 +622,18 @@ fPsh.join = fPsh.extend idFam
 -- For now, just cons cells
 TypeOf : A -> Family
 TypeOf ConsCell =
-  Maybe . (FamProd [< const String, Var ConsCell])
+  (FamProd [< const String, Var ConsCell])
 
 TypeOfFunctoriality : (a : A) -> PresheafOver $ TypeOf a
 -- Should propagate structure more nicely
-TypeOfFunctoriality ConsCell rho Nothing = Nothing
-TypeOfFunctoriality ConsCell rho (Just [< str , loc]) =
-  Just [< str , rho _ loc]
+TypeOfFunctoriality ConsCell rho ([< str , loc]) =
+  [< str , rho _ loc]
+
+%hint
+TypeOfBoxFunctoriality : (a : A) -> BoxCoalg $ TypeOf a
+-- Should propagate structure more nicely
+TypeOfBoxFunctoriality a = cast {from = PresheafOver _} (TypeOfFunctoriality a)
+
 
 
 ||| Type of reading an A-cell
@@ -734,10 +739,9 @@ HeapletCoalg = MkBoxCoalg $ \w, heaplet,w',rho =>
 Heap : Family
 Heap w = Heaplet w w
 
-Ex1 : Heap [< ConsCell, ConsCell, ConsCell]
-Ex1 = [< Just [< "first of singleton", There Here]
-      ,  Nothing
-      ,  Just [< "loop" , Here]
+Ex1 : Heap [< ConsCell, ConsCell]
+Ex1 = [< [< "first of singleton", There Here]
+      ,  [< "loop" , Here]
       ]
 
 extendHeap : {w : World} ->
@@ -869,28 +873,28 @@ LSalg = MkAlgebraOver
 ExProg' : Nat -> (acc : SnocList String) ->
    Var ConsCell -|> LSSig .Free (const $ List String)
 ExProg' 0     acc roots loc = pure roots (acc <>> [])
-ExProg' (S n) acc roots loc = (
+ExProg' (S n) acc roots loc =
+  let %hint foo : BoxCoalg (TypeOf ConsCell)
+      foo = TypeOfBoxFunctoriality ConsCell
+  in (
                                   (\roots,[< loc] =>
-  read roots loc) >>== (\roots, [<loc, cons] =>
-  case cons of
-    Nothing => pure roots (acc <>> ["error, read Nothing"])
-    Just [< str, loc'] => ExProg' n (acc :< str) roots loc'))
+  read roots loc) >>== (\roots, [<loc, [< str, loc']] =>
+    ExProg' n (acc :< str) roots loc'))
   roots [< loc]
 
 
 
 ExProg : LSSig .Free (const $ List String) [<]
-ExProg =(                                 -- noise (context management)
+ExProg =
+  let %hint foo : BoxCoalg (TypeOf ConsCell)
+      foo = TypeOfBoxFunctoriality ConsCell
+  in (                                 -- noise (context management)
   {- code -}                                   (\roots, [<              ] =>
-  new roots [< Just [<"1st", Here]]     ) >>== (\roots, [<loc           ] =>
-  new roots [< Just [<"2nd", There loc]]) >>== (\roots, [<loc, loc'     ] =>
-  read roots loc                        ) >>== (\roots, [<loc, loc', val] =>
-  case val of
-    Nothing        => pure  roots ["I failed"]
-    Just [<str, _] => {-write roots [< loc, Just [< str, loc']]
-                                        ) >>== (\roots, [<loc, loc', val, _] =>
-                      ExProg' 1 [<] roots loc'-}
-                      pure roots [str]))
+  new roots [< [<"1st", Here]]     ) >>== (\roots, [<loc           ] =>
+  new roots [< [<"2nd", There loc]]) >>== (\roots, [<loc, loc'     ] =>
+  read roots loc                        ) >>== (\roots, [<loc, loc', [< str, loc'']] =>
+  write roots [< loc, [< str, loc']]    ) >>== (\roots, [<loc, loc', val, _] =>
+                      ExProg' 15 [<] roots loc'))
   -- Some more noise:
   [<] -- Initial roots
   [<] -- Initial environment
