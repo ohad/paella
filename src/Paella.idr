@@ -423,7 +423,7 @@ psh.shiftFromRepr =
 
 -- Did we not define this already?
 varCoalg : {a : A} -> BoxCoalg (Var a)
-varCoalg = MkBoxCoalg $ \w,x,w',rho => rho _ x
+varCoalg = MkBoxCoalg $ \w, pos, w', rho => rho a pos
 
 record OpSig where
   constructor MkOpSig
