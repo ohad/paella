@@ -567,10 +567,6 @@ new bit w k =
       impl1 = freePsh.uncurry op1 w [< [< k], inr]
   in if bit then impl1 else impl0
 
-example : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
-  Env [< P] w -> LSFreeMonad f w -> LSFreeMonad f w
-example w env k = read w [< k, env, k]
-
 TypeOf : A -> Type
 TypeOf P = Bool
 
@@ -589,6 +585,9 @@ setComponent (There pos) (ss :< s) s' = setComponent pos ss s' :< s
 -- constantly t
 Heap : Type -> Family
 Heap t w = StateIn w -> Pair t (StateIn w)
+
+pureHeap : t -> Heap t w
+pureHeap t = \x => (t, x)
 
 runHeap : Heap t w -> StateIn w -> Pair t (StateIn w)
 runHeap h ss = h ss
@@ -734,5 +733,59 @@ LocHeapAlgebra = [
   newLocHeapOp' True
 ]
 
-test : String
-test = "Hello from Idris2!"
+-- l1 := !l2
+readWrite : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
+  Env [< P] w ->     -- Location 1
+  Env [< P] w ->     -- Location 2
+  LSFreeMonad f w -> -- Continuation
+  LSFreeMonad f w
+readWrite w l1 l2 k =
+  let k' = \b => write b w [< l2, k]
+  in read w [< k' True, l1, k' False]
+
+-- swap value of two locations with temp location
+-- temp = new 0
+-- temp := !l1
+-- l1 := !l2
+-- l2 := !temp
+swap : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
+  Env [< P] w ->     -- Location 1
+  Env [< P] w ->     -- Location 2
+  LSFreeMonad f ([< P] ++ w) -> -- Continuation
+  LSFreeMonad f w
+swap w l1 l2 k =
+  new True _ (
+    let temp : [<P] ~> [< P] ++ w
+        temp = inl
+        l1' = inr . l1
+        l2' = inr . l2
+    in
+    readWrite _ temp l1' $
+    readWrite _ l1' l2' $
+    readWrite _ l2' temp $
+    k
+  )
+
+example : {f : Family} -> {auto fPsh : BoxCoalg f} ->
+  f [< P, P] -> LSFreeMonad f [< P, P]
+example val =
+  let l1 = inl {w2 = [< P]}
+      l2 = inr
+      val' : f ([< P] ++ [< P, P])
+      val' = fPsh.map inr val
+  in swap _ l1 l2 (pure _ val')
+
+initialLocHeap : LocHeap Unit [< P, P]
+initialLocHeap w rho =
+  let l1 = rho _ Here
+      l2 = rho _ (There Here)
+  in case w of
+    [<] => \_ => ((), [<])         -- No physical locations
+    [< P] => \x => ((), x)         -- One physical location
+    (w :< P) :< P => \x => ((), x) -- Two or more physical locations
+
+main : (w' : World) -> ([< P, P] ~> w') -> StateIn w' -> StateIn w'
+main w' rho ss =
+  let interpret = (LocHeapAlgebra .fold) LocHeapCoalg idFam
+      res = interpret [< P, P] (example {f = LocHeap Unit} initialLocHeap)
+  in snd (runLocHeap w' rho res ss)
