@@ -32,6 +32,13 @@ namespace Data.List.Quantifiers
     f x Here :: tabulateElem xs (\y, pos => f y (There pos))
 
   public export
+  zipPropertyWithRelevant : {xs : List _} ->
+    ((x : _) -> p x -> q x -> r x) -> All p xs -> All q xs -> All r xs
+  zipPropertyWithRelevant f [] vs = []
+  zipPropertyWithRelevant f (u :: us) (v :: vs) =
+    f _ u v :: zipPropertyWithRelevant f us vs
+
+  public export
   mapPropertyWithRelevant : {xs : List _} ->
     ((x : _) -> p x -> q x) -> All p xs -> All q xs
   mapPropertyWithRelevant f [] = []
@@ -382,6 +389,12 @@ public export
 psh.abst beta w env w2 [< rho , x] =
   beta w2 [< psh rho env , x]
 
+public export
+uncur : {gamma : Family} ->
+  gamma -|> (f -% g) ->
+  FamProd[< gamma, f] -|> g
+uncur h w [< env, x] = h w env w [< idRen, x]
+
 -- Can derive from previous but can cut out hassle
 public export
 abst :
@@ -409,8 +422,8 @@ psh.shiftFromRepr =
   in (w0.shiftCoalg coalg).map.abst algeb
 
 -- Did we not define this already?
-varCoalg : BoxCoalg (Var a)
-
+varCoalg : {a : A} -> BoxCoalg (Var a)
+varCoalg = MkBoxCoalg $ \w,x,w',rho => rho _ x
 
 record OpSig where
   constructor MkOpSig
@@ -514,7 +527,33 @@ MkAlgebraOver = mapPropertyWithRelevant
   (\x => ExpCoalg .map.abst)
 
 
+-- Powers
 
+swapExps : {a,b,f : Family} ->
+  (PresheafOver b) =>
+  a -% (b -% f) -|> b -% (a -% f)
+swapExps @{bPsh} =
+  (ExpCoalg).map.abst
+    ((BoxCoalgProd [< ExpCoalg , cast {from = PresheafOver b} bPsh]).map.abst $
+  -- instead of mess around with point-free style, switch to pointed style
+  \w, [<[< h, x], y] => eval w [< eval w [< h, y], x]
+  )
+
+liftOp : {gamma, arity, args, f : Family} ->
+  (PresheafOver arity) => (PresheafOver args) => (PresheafOver gamma) =>
+  (op : arity -% f -|> args -% f) ->
+  (arity -% (gamma -% f) -|> args -% (gamma -% f))
+liftOp @{arityPsh} @{argsPsh} @{gammaPsh} op =
+  swapExps @{argsPsh} .:. (expMap op) .:. swapExps @{gammaPsh}
+
+liftAlg : {sig : Signature} -> {gamma, f : Family} ->
+  (sigFuncs : FunctorialSignature sig) =>
+  (gammaPsh : PresheafOver gamma) =>
+  sig.AlgebraOver f ->
+  sig.AlgebraOver (gamma -% f)
+liftAlg @{sigFuncs} alg = zipPropertyWithRelevant (\optor,sigFunc, op =>
+    liftOp @{sigFunc.Arity} @{sigFunc.Args} @{gammaPsh} op)
+  sigFuncs alg
 
 curryOp : (sig : Signature) ->
   (f : Family) -> (BoxCoalg f) ->
@@ -546,34 +585,35 @@ a.fold env w (Op {op} pos .(w) [< arg, k]) =
   (f -|> sig.Free g) -> (sig.Free f -|> sig.Free g)
 gPsh.extend alpha = (TermAlgebra g gPsh).fold alpha
 
--- Need powers *sign*
-
 (.extendStrength) :  {sig : Signature} ->
+  (sigFuncs : FunctorialSignature sig) =>
   {gamma, f,g : Family} ->
+  {fPsh : PresheafOver f} ->
   {gammaPsh : PresheafOver gamma} ->
   BoxCoalg g ->
   (FamProd [< gamma, f] -|> sig.Free g) ->
   (FamProd [< gamma, sig.Free f] -|> sig.Free g)
 gPsh.extendStrength alpha  =
-  ?h1
-  --(TermAlgebra g gPsh).fold ?h891 w ?h11771
-  --(TermAlgebra g gPsh).fold alpha
-
+  (uncur $ (liftAlg @{sigFuncs} @{gammaPsh} (TermAlgebra g gPsh)).fold (fPsh.abst $ alpha .:. swap)) .:. swap
 
 infixr 1 >>==
 
 (>>==) : {sig : Signature} ->
   {gammas : SnocList Family} ->
   {f,g : Family} ->
-  {auto gammaPsh : ForAll gammas PresheafOver} ->
+  (sigFuncs : FunctorialSignature sig) =>
+  (gammaPsh : ForAll gammas PresheafOver) =>
+  (fPsh : PresheafOver f) =>
   (coalg : BoxCoalg g)  =>
   (FamProd gammas -|> sig.Free f) ->
   (FamProd (gammas :< f) -|> sig.Free g) ->
   FamProd gammas -|> sig.Free g
 (>>==) xs k =
-  let shed1 = ?help3 --(coalg.extendStrength {gammaPsh = ?help} k)
-      shed2 = ?help4 --tuple [< ?h189, xs]
-  in ?help
+  ((coalg.extendStrength {sigFuncs} {fPsh}
+                   {gammaPsh =
+                   (BoxCoalgProd $ mapPropertyWithRelevant (\_,psh => cast {from = PresheafOver _} psh) gammaPsh).map})
+                (\w,[< env, x] => k w (env :< x)))
+      .:. tuple [<\_ => id,  xs]
 (.join) : {sig : Signature} -> {f : Family} -> BoxCoalg f ->
   sig.Free (sig.Free f) -|> sig.Free f
 fPsh.join = fPsh.extend idFam
@@ -620,6 +660,27 @@ LSSig = [
   writeType ConsCell,
   newType ConsCell
 ]
+
+%hint
+LSSigFunc : FunctorialSignature LSSig
+LSSigFunc =
+  [ -- read
+    MkFunOpSig { Arity = TypeOfFunctoriality ConsCell
+               , Args = varCoalg.map
+               }
+  , -- write
+    MkFunOpSig { Arity = const $ const ()
+               , Args = (BoxCoalgProd [< varCoalg,
+                                         cast {from = PresheafOver (TypeOf ConsCell)}
+                                         (TypeOfFunctoriality ConsCell)]).map
+               }
+  , -- new
+    MkFunOpSig { Arity = varCoalg.map
+               , Args = ([< ConsCell].shiftCoalg {f = (TypeOf ConsCell)} $
+                     cast {from = PresheafOver (TypeOf ConsCell)}
+                     (TypeOfFunctoriality ConsCell)).map
+               }
+  ]
 
 -- Probably better to define the generic operations generically
 -- and instantiate to these
