@@ -99,8 +99,6 @@ namespace Data.SnocList.Quantifiers
   mapPropertyWithRelevant f [<] = [<]
   mapPropertyWithRelevant f (sy :< y) = mapPropertyWithRelevant f sy :< f _ y
 
-
-
   public export
   mapAll : {sx : SnocList a} ->
     ((x : a) -> (p . f) x -> (q . g) x) ->
@@ -119,6 +117,19 @@ namespace Data.SnocList.Quantifiers
   forgetAny : {0 sx : SnocList a} -> Any (const type) sx -> type
   forgetAny pos = (toExists pos).snd
 
+  public export
+  splitAll : {sy, sx : SnocList _} ->
+    All p (sy ++ sx) -> (All p sy, All p sx)
+  splitAll {sx = [<]} sa = (sa, [<])
+  splitAll {sx = _ :< _} (sa :< a) =
+    let (sb, sa') = splitAll sa in (sb, sa' :< a)
+  
+  public export
+  joinAll : {sy, sx : SnocList _} ->
+    All p sy -> All p sx -> All p (sy ++ sx)
+  joinAll {sx = [<]} sa [<] = sa
+  joinAll {sx = _ :< _} sa (sb :< b) = joinAll sa sb :< b
+
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type
 data A = P
@@ -132,6 +143,11 @@ World = SnocList A
 data Var : A -> World -> Type where
   Here : Var a (w :< a)
   There : Var a w -> Var a (w :< b)
+
+Eq (Var a w) where
+  Here      == Here      = True
+  (There x) == (There y) = x == y
+  _         == _         = False
 
 infixr 1 ~>
 
@@ -241,6 +257,14 @@ cotuple : {w2 : World} -> (w1 ~> w) -> (w2 ~> w) -> w1 ++ w2 ~> w
 cotuple {w2 = [<]    } f g   a  x        = f a x
 cotuple {w2 = w2 :< b} f g .(b) Here     = g b Here
 cotuple {w2 = w2 :< b} f g   a (There x) = cotuple f (\c, y => g c (There y)) a x
+
+untuple : {w2 : World} -> (w1 ++ w2 ~> w) -> Pair (w1 ~> w) (w2 ~> w)
+untuple f = (f . inl, f . inr)
+
+idLeft : {w : World} -> [< ] ++ w ~> w
+idLeft {w = [<]} a x = x
+idLeft {w = w :< b} b Here = Here
+idLeft {w = w :< b} a (There pos) = There (idLeft a pos)
 
 ||| Monoidal action on maps
 bimap : {w1, w2, w1', w2' : World} -> (w1 ~> w1') -> (w2 ~> w2') -> (w1 ++ w2) ~> (w1' ++ w2')
@@ -409,61 +433,79 @@ fPsh.join = fPsh.extend idFam
 
 ||| Type of reading a bit:
 ||| ? : [[], a, []]
-readType : OpSig
-readType = MkOpSig
+ReadType : OpSig
+ReadType = MkOpSig
   { Args = [< P]
   , Arity = [< [<], [<]]
   }
 
 ||| Type of writing a 0:
 ||| w_0 : [a, []]
-write0Type : OpSig
-write0Type = MkOpSig
+Write0Type : OpSig
+Write0Type = MkOpSig
   { Args = [< P]
   , Arity = [< [<]]
   }
 
 ||| Type of writing a 1:
 ||| w_1 : [a, []]
-write1Type : OpSig
-write1Type = MkOpSig
+Write1Type : OpSig
+Write1Type = MkOpSig
   { Args = [< P]
   , Arity = [< [<]]
   }
 
 ||| Type of equality testing:
 ||| ?_= : [[], a, a, []]
-equalTestType : OpSig
-equalTestType = MkOpSig
+EqualTestType : OpSig
+EqualTestType = MkOpSig
   { Args = [< P, P]
   , Arity = [< [<], [<]]
   }
 
 ||| Type of restriction (new) to 0:
 ||| nu_0 : [[a]]
-restrict0Type : OpSig
-restrict0Type = MkOpSig
+Restrict0Type : OpSig
+Restrict0Type = MkOpSig
   { Args = [< ]
   , Arity = [< [< P]]
   }
 
 ||| Type of restriction (new) to 1:
 ||| nu_1 : [[a]]
-restrict1Type : OpSig
-restrict1Type = MkOpSig
+Restrict1Type : OpSig
+Restrict1Type = MkOpSig
   { Args = [< ]
   , Arity = [< [< P]]
   }
 
 LSSig : Signature
 LSSig = [
-  readType,
-  write0Type,
-  write1Type,
-  equalTestType,
-  restrict0Type,
-  restrict1Type
+  ReadType,
+  Write0Type,
+  Write1Type,
+  EqualTestType,
+  Restrict0Type,
+  Restrict1Type
 ]
+
+readOpIndex : ReadType `Elem` LSSig
+readOpIndex = Here
+
+write0OpIndex : Write0Type `Elem` LSSig
+write0OpIndex = There Here
+
+write1OpIndex : Write1Type `Elem` LSSig
+write1OpIndex = There $ There Here
+
+equalTestOpIndex : EqualTestType `Elem` LSSig
+equalTestOpIndex = There $ There $ There Here
+
+restrict0OpIndex : Restrict0Type `Elem` LSSig
+restrict0OpIndex = There $ There $ There $ There Here
+
+restrict1OpIndex : Restrict1Type `Elem` LSSig
+restrict1OpIndex = There $ There $ There $ There $ There Here
 
 LSAlgebra : (f : Family) -> Type
 LSAlgebra = LSSig .AlgebraOver
@@ -481,7 +523,7 @@ read w [< k0, p, k1] =
       freePsh = cast
         {to = DAlg (LSFreeMonad f)}
         (BoxCoalgFree {sig = LSSig} fPsh)
-      op = indexAll Here alg
+      op = indexAll readOpIndex alg
   in freePsh.uncurry op w [< [< freePsh.map inr k0, freePsh.map inr k1], p]
 
 write : {f : Family} -> {auto fPsh : BoxCoalg f} -> Bool ->
@@ -492,9 +534,9 @@ write bit w [< p, k] =
         {to = DAlg (LSFreeMonad f)}
         (BoxCoalgFree {sig = LSSig} fPsh)
       -- Don't know how to move the if up (probably need to set some implicits)
-      op0 = indexAll (There Here) alg
+      op0 = indexAll write0OpIndex alg
       impl0 = freePsh.uncurry op0 w [< [< freePsh.map inr k], p]
-      op1 = indexAll (There $ There Here) alg
+      op1 = indexAll write1OpIndex alg
       impl1 = freePsh.uncurry op1 w [< [< freePsh.map inr k], p]
   in if bit then impl1 else impl0
 
@@ -506,7 +548,7 @@ equal w [< k0, p, q, k1] =
       freePsh = cast
         {to = DAlg (LSFreeMonad f)}
         (BoxCoalgFree {sig = LSSig} fPsh)
-      op = indexAll (There $ There $ There Here) alg
+      op = indexAll equalTestOpIndex alg
       -- I think this is the correct thing to do
       pq = cotuple p q
   in freePsh.uncurry op w [< [< freePsh.map inr k0, freePsh.map inr k1], pq]
@@ -519,15 +561,178 @@ new bit w k =
         {to = DAlg (LSFreeMonad f)}
         (BoxCoalgFree {sig = LSSig} fPsh)
       -- Same issue as above
-      op0 = indexAll (There $ There $ There $ There Here) alg
+      op0 = indexAll restrict0OpIndex alg
       impl0 = freePsh.uncurry op0 w [< [< k], inr]
-      op1 = indexAll (There $ There $ There $ There $ There Here) alg
+      op1 = indexAll restrict1OpIndex alg
       impl1 = freePsh.uncurry op1 w [< [< k], inr]
   in if bit then impl1 else impl0
 
 example : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
   Env [< P] w -> LSFreeMonad f w -> LSFreeMonad f w
 example w env k = read w [< k, env, k]
+
+TypeOf : A -> Type
+TypeOf P = Bool
+
+StateIn : Family
+StateIn w = ForAll w TypeOf
+
+getComponent : Var a w -> StateIn w -> TypeOf a
+getComponent Here (_ :< s) = s
+getComponent (There pos) (ss :< _) = getComponent pos ss
+
+setComponent : Var a w -> StateIn w -> TypeOf a -> StateIn w
+setComponent Here (ss :< _) s' = ss :< s'
+setComponent (There pos) (ss :< s) s' = setComponent pos ss s' :< s
+
+-- Viewed as in Inj-presheaf, free Inj-LS algebra on the presheaf which is
+-- constantly t
+Heap : Type -> Family
+Heap t w = StateIn w -> Pair t (StateIn w)
+
+runHeap : Heap t w -> StateIn w -> Pair t (StateIn w)
+runHeap h ss = h ss
+
+-- Heap operations
+readHeapOp : FamProd [< Heap t, Env [< P], Heap t] -|> Heap t
+readHeapOp w [< k0, p, k1] ss =
+  let sp = getComponent (p _ Here) ss in
+  if sp then k0 ss else k1 ss
+
+writeHeapOp : Bool -> FamProd [< Env [< P], Heap t] -|> Heap t
+writeHeapOp b w [< p, k] ss =
+  let (t, ss') = k ss in
+  (t, setComponent (p _ Here) ss' b)
+
+newHeapOp : Bool -> [< P].shift (Heap t) -|> Heap t
+newHeapOp b w k ss =
+  let combined = joinAll {sy = [< P]} [< b] ss
+      (t, ss') = k combined
+  in (t, snd (splitAll {sy = [<P]} ss'))
+
+-- The action of the injection n -> n + 1 of Inj on the heap
+extendHeap : Heap t -|> [< P].shift (Heap t)
+extendHeap w h sv =
+  let (v', sv') = splitAll {sy = [< P]} sv
+      (x, sv'') = h sv'
+  in (x, joinAll v' sv')
+
+-- Viewed as the right Kan extension of Heap along the inclusion Inj -> Fin
+LocHeap : Type -> Family
+LocHeap t w = (w' : World) -> (w ~> w') -> Heap t w'
+
+runLocHeap : (w' : World) -> (w ~> w') -> LocHeap t w ->
+  StateIn w' -> Pair t (StateIn w')
+runLocHeap w' rho h s = h w' rho s
+
+-- LocHeap is a presheaf
+LocHeapCoalg : {t : Type} -> BoxCoalg (LocHeap t)
+LocHeapCoalg = MkBoxCoalg $ \w, h, w'', rho => \w', rho' => h w' (rho' . rho)
+
+LocHeapAlg : {t : Type} -> DAlg (LocHeap t)
+LocHeapAlg = cast {from = BoxCoalg (LocHeap t)} LocHeapCoalg
+
+readLocHeapOp : FamProd [< LocHeap t, Env [< P], LocHeap t] -|> LocHeap t
+readLocHeapOp w [< k0, p, k1] w' rho =
+  let k0' = k0 w' rho
+      k1' = k1 w' rho
+      p' = rho . p
+  in readHeapOp w' [< k0', p', k1']
+
+writeLocHeapOp : Bool -> FamProd [< Env [< P], LocHeap t] -|> LocHeap t
+writeLocHeapOp b w [< p, k] w' rho =
+  let p' = rho . p
+      k' = k w' rho
+  in writeHeapOp b w' [< p', k']
+
+newLocHeapOp : Bool -> [< P].shift (LocHeap t) -|> LocHeap t
+newLocHeapOp b w k w' rho =
+  let rho' = bimap {w1 = [< P], w1' = [< P]} idRen rho
+      k' = k ([< P] ++ w') rho'
+  in newHeapOp b w' k'
+
+equalLocHeapOp :
+  FamProd [< LocHeap t, Env [< P], Env [< P], LocHeap t] -|> LocHeap t
+equalLocHeapOp w [< k0, p, q, k1] w' rho =
+  let k0' = k0 w' rho
+      k1' = k1 w' rho
+      p' = (rho . p) _ Here
+      q' = (rho . q) _ Here
+  in if p' == q' then k0' else k1'
+
+-- Faffing with currying
+
+readLocHeapOp' : {t : Type} ->
+  (LocHeap t) ^ ReadType .Arity -|> (ReadType .Args).shift (LocHeap t)
+readLocHeapOp' =
+  let op' : FamProd
+              [< (LocHeap t) ^ ReadType .Arity
+              ,  Env (ReadType .Args)
+              ] -|> LocHeap t
+      op' w [< [< k0, k1], p] = readLocHeapOp w
+        [< LocHeapCoalg .map idLeft k0
+        ,  p
+        ,  LocHeapCoalg .map idLeft k1
+        ]
+      coalg : BoxCoalg ((LocHeap t) ^ ReadType .Arity)
+      coalg = ArityExponential {ws = ReadType .Arity} LocHeapCoalg
+  in (cast coalg).curry op'
+
+writeLocHeapOp' : {t : Type} -> Bool ->
+  (LocHeap t) ^ Write0Type .Arity -|> (Write0Type .Args).shift (LocHeap t)
+writeLocHeapOp' b =
+  let op' : FamProd
+              [< (LocHeap t) ^ Write0Type .Arity
+              ,  Env (Write0Type .Args)
+              ] -|> LocHeap t
+      op' w [< [< k], p] = writeLocHeapOp b w
+        [< p
+        ,  LocHeapCoalg .map idLeft k
+        ]
+      coalg : BoxCoalg ((LocHeap t) ^ Write0Type .Arity)
+      coalg = ArityExponential {ws = Write0Type .Arity} LocHeapCoalg
+  in (cast coalg).curry op'
+
+newLocHeapOp' : {t : Type} -> Bool ->
+  (LocHeap t) ^ Restrict0Type .Arity -|> (Restrict0Type .Args).shift (LocHeap t)
+newLocHeapOp' b =
+  let op' : FamProd
+              [< (LocHeap t) ^ Restrict0Type .Arity
+              ,  Env Restrict0Type .Args
+              ] -|> LocHeap t
+      op' w [< [< k], p] = newLocHeapOp b w k
+      coalg : BoxCoalg ((LocHeap t) ^ Restrict0Type .Arity)
+      coalg = ArityExponential {ws = Restrict0Type .Arity} LocHeapCoalg
+  in (cast coalg).curry op'
+
+equalLocHeapOp' : {t : Type} ->
+  (LocHeap t) ^ EqualTestType .Arity -|> (EqualTestType .Args).shift (LocHeap t)
+equalLocHeapOp' =
+  let op' : FamProd
+              [< (LocHeap t) ^ EqualTestType .Arity
+    ,            Env (EqualTestType .Args)
+              ] -|> LocHeap t
+      op' w [< [< k0, k1], pq] =
+        let (p, q) = untuple pq
+        in equalLocHeapOp w
+             [< LocHeapCoalg .map idLeft k0
+             ,  p
+             ,  q
+             ,  LocHeapCoalg .map idLeft k1
+             ]
+      coalg : BoxCoalg ((LocHeap t) ^ EqualTestType .Arity)
+      coalg = ArityExponential {ws = EqualTestType .Arity} LocHeapCoalg
+  in (cast coalg).curry op'
+
+LocHeapAlgebra : {t : Type} -> LSAlgebra (LocHeap t)
+LocHeapAlgebra = [
+  readLocHeapOp',
+  writeLocHeapOp' False,
+  writeLocHeapOp' True,
+  equalLocHeapOp',
+  newLocHeapOp' False,
+  newLocHeapOp' True
+]
 
 test : String
 test = "Hello from Idris2!"
