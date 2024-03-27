@@ -886,10 +886,16 @@ ExProg =(                                 -- noise (context management)
   new roots [< Just [<"2nd", There loc]]) >>== (\roots, [<loc, loc'     ] =>
   read roots loc                        ) >>== (\roots, [<loc, loc', val] =>
   case val of
-    Nothing        => pure  roots () -- Silent failure -- naughty
-    Just [<str, _] => write roots [< loc, Just [< str, loc']]
+    Nothing        => pure  roots ["I failed"]
+    Just [<str, _] => {-write roots [< loc, Just [< str, loc']]
                                         ) >>== (\roots, [<loc, loc', val, _] =>
-                      ExProg' 15 [<] roots loc))
+                      ExProg' 1 [<] roots loc'-}
+                      pure roots [str]))
   -- Some more noise:
   [<] -- Initial roots
   [<] -- Initial environment
+
+ExHandle : Private (const (List String)) [<]
+ExHandle =
+  let coalg = MkBoxCoalg (\w, strs, b, f => strs)
+  in (LSalg {coalg}).fold (val {coalg}) [<] ExProg [<] [< idRen,[<]]
