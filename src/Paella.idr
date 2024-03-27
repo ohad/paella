@@ -56,6 +56,20 @@ namespace Data.List.Fin
   (x :: xs) ?!  FZ = Here
   (x :: xs) ?! (FS pos) = There (xs ?! pos)
 
+namespace Data.SnocList.Fin
+  public export
+  (!!) : (xs : SnocList a) -> (Fin (length xs)) -> a
+  [<] !! pos impossible
+  (xs :< x) !!  FZ      = x
+  (xs :< x) !! (FS pos) = xs !! pos
+
+  public export
+  (?!) : (xs : SnocList a) -> (i : Fin (length xs)) ->
+         (xs !! i) `Elem` xs
+  [<] ?! i impossible
+  (xs :< x) ?!  FZ = Here
+  (xs :< x) ?! (FS pos) = There (xs ?! pos)
+
 
 namespace Data.SnocList.Quantifiers
   public export
@@ -317,6 +331,16 @@ BoxCoalgProd sbox = MkBoxCoalg $ \w, sx, w', rho =>
     sbox
     sx
 
+tuple : {f : Family} -> {sg : SnocList Family} ->
+  ForAll sg (\g => f -|> g) ->
+  f -|> FamProd sg
+tuple hs w x = mapProperty (\h => h w x) hs
+
+{- TODO: For completeness
+projection : {sf : SnocList Family} -> (i : Fin $ length sf) ->
+  FamProd sf -|> (sf !! i)
+-}
+
 Env : World -> Family
 Env w = (w ~>)
 
@@ -522,14 +546,34 @@ a.fold env w (Op {op} pos .(w) [< arg, k]) =
   (f -|> sig.Free g) -> (sig.Free f -|> sig.Free g)
 gPsh.extend alpha = (TermAlgebra g gPsh).fold alpha
 
--- Not sure the elaborator will manange this
+-- Need powers *sign*
 
-(>>=) : {sig : Signature} -> {f,g : Family} ->
+(.extendStrength) :  {sig : Signature} ->
+  {gamma, f,g : Family} ->
+  {gammaPsh : PresheafOver gamma} ->
+  BoxCoalg g ->
+  (FamProd [< gamma, f] -|> sig.Free g) ->
+  (FamProd [< gamma, sig.Free f] -|> sig.Free g)
+gPsh.extendStrength alpha  =
+  ?h1
+  --(TermAlgebra g gPsh).fold ?h891 w ?h11771
+  --(TermAlgebra g gPsh).fold alpha
+
+
+infixr 1 >>==
+
+(>>==) : {sig : Signature} ->
+  {gammas : SnocList Family} ->
+  {f,g : Family} ->
+  {auto gammaPsh : ForAll gammas PresheafOver} ->
   (coalg : BoxCoalg g)  =>
-  ((w : World) -> sig.Free f w) ->
-  (f -|> sig.Free g) -> (w : World) -> sig.Free g w
-(>>=) xs k w = coalg.extend k w (xs w)
-
+  (FamProd gammas -|> sig.Free f) ->
+  (FamProd (gammas :< f) -|> sig.Free g) ->
+  FamProd gammas -|> sig.Free g
+(>>==) xs k =
+  let shed1 = ?help3 --(coalg.extendStrength {gammaPsh = ?help} k)
+      shed2 = ?help4 --tuple [< ?h189, xs]
+  in ?help
 (.join) : {sig : Signature} -> {f : Family} -> BoxCoalg f ->
   sig.Free (sig.Free f) -|> sig.Free f
 fPsh.join = fPsh.extend idFam
@@ -761,15 +805,30 @@ LSalg = MkAlgebraOver
   ]
 
 
-ExProg : LSSig .Free (const $ List String) [<]
-ExProg = do
-  -- I'm sad, this is quite hard to write up
-  let foo = (\w => new _ [< Just [<"first cell", Here]])
-  loc <- \w => foo [<]
-  --loc' <-\w => new w [< Just [<"second cell", Here]]
-  pure _ []
+ExProg' : Nat -> (acc : SnocList String) ->
+   Var ConsCell -|> LSSig .Free (const $ List String)
+ExProg' 0     acc roots loc = pure roots (acc <>> [])
+ExProg' (S n) acc roots loc = (
+                                  (\roots,[< loc] =>
+  read roots loc) >>== (\roots, [<loc, cons] =>
+  case cons of
+    Nothing => pure roots (acc <>> ["error, read Nothing"])
+    Just [< str, loc'] => ExProg' n (acc :< str) roots loc'))
+  roots [< loc]
 
-{-
-example : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
-  Env [< P] w -> LSFreeMonad f w -> LSFreeMonad f w
-example w env k = read w [< k, env, k]
+
+
+ExProg : LSSig .Free (const $ List String) [<]
+ExProg =(                                 -- noise (context management)
+  {- code -}                                   (\roots, [<              ] =>
+  new roots [< Just [<"1st", Here]]     ) >>== (\roots, [<loc           ] =>
+  new roots [< Just [<"2nd", There loc]]) >>== (\roots, [<loc, loc'     ] =>
+  read roots loc                        ) >>== (\roots, [<loc, loc', val] =>
+  case val of
+    Nothing        => pure  roots () -- Silent failure -- naughty
+    Just [<str, _] => write roots [< loc, Just [< str, loc']]
+                                        ) >>== (\roots, [<loc, loc', val, _] =>
+                      ExProg' 15 [<] roots loc))
+  -- Some more noise:
+  [<] -- Initial roots
+  [<] -- Initial environment
