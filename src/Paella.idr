@@ -733,47 +733,8 @@ LocHeapAlgebra = [
   newLocHeapOp' True
 ]
 
--- l1 := !l2
-readWrite : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
-  Env [< P] w ->     -- Location 1
-  Env [< P] w ->     -- Location 2
-  LSFreeMonad f w -> -- Continuation
-  LSFreeMonad f w
-readWrite w l1 l2 k =
-  let k' = \b => write b w [< l2, k]
-  in read w [< k' True, l1, k' False]
-
--- swap value of two locations with temp location
--- temp = new 0
--- temp := !l1
--- l1 := !l2
--- l2 := !temp
-swap : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
-  Env [< P] w ->     -- Location 1
-  Env [< P] w ->     -- Location 2
-  LSFreeMonad f ([< P] ++ w) -> -- Continuation
-  LSFreeMonad f w
-swap w l1 l2 k =
-  new True _ (
-    let temp : [<P] ~> [< P] ++ w
-        temp = inl
-        l1' = inr . l1
-        l2' = inr . l2
-    in
-    readWrite _ temp l1' $
-    readWrite _ l1' l2' $
-    readWrite _ l2' temp $
-    k
-  )
-
-example : {f : Family} -> {auto fPsh : BoxCoalg f} ->
-  f [< P, P] -> LSFreeMonad f [< P, P]
-example val =
-  let l1 = inl {w2 = [< P]}
-      l2 = inr
-      val' : f ([< P] ++ [< P, P])
-      val' = fPsh.map inr val
-  in swap _ l1 l2 (pure _ val')
+pureLocHeap : LocHeap Unit w
+pureLocHeap w rho = pureHeap ()
 
 initialLocHeap : LocHeap Unit [< P, P]
 initialLocHeap w rho =
@@ -782,10 +743,73 @@ initialLocHeap w rho =
   in case w of
     [<] => \_ => ((), [<])         -- No physical locations
     [< P] => \x => ((), x)         -- One physical location
-    (w :< P) :< P => \x => ((), x) -- Two or more physical locations
+    (w :< P) :< P => \x => ((), x) 
 
-main : (w' : World) -> ([< P, P] ~> w') -> StateIn w' -> StateIn w'
-main w' rho ss =
+-- l1 := !l2
+readWrite : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
+  Env [< P] w ->     -- Location 1
+  Env [< P] w ->     -- Location 2
+  LSFreeMonad f w -> -- Continuation
+  LSFreeMonad f w
+readWrite w l1 l2 k =
+  let k' = \b => write b w [< l1, k]
+  in read w [< k' True, l2, k' False]
+
+-- swap value of two locations with temp location
+-- temp = new 0
+-- temp := !l1
+-- l1 := !l2
+-- l2 := !temp
+swap : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
+  Env [< P] w ->                -- Location 1
+  Env [< P] w ->                -- Location 2
+  LSFreeMonad f w -> -- Continuation
+  LSFreeMonad f w
+swap w l1 l2 k =
+  let coalg = BoxCoalgFree fPsh in
+  new False _ (
+    let temp : [<P] ~> [< P] ++ w
+        temp = inl
+        l1' = inr . l1
+        l2' = inr . l2
+    in
+    readWrite _ temp l1' $
+    readWrite _ l1' l2' $
+    readWrite _ l2' temp $
+    coalg.map inr k
+  )
+
+Ex1 : {f : Family} -> {auto fPsh : BoxCoalg f} ->
+  f [< P, P] -> LSFreeMonad f [< P, P]
+Ex1 val =
+  let l1 = inl {w2 = [< P]}
+      l2 = inr
+  in swap _ l1 l2 (pure _ val)
+
+RunEx1 : (w' : World) -> ([< P, P] ~> w') -> StateIn w' -> StateIn w'
+RunEx1 w' rho ss =
   let interpret = (LocHeapAlgebra .fold) LocHeapCoalg idFam
-      res = interpret [< P, P] (example {f = LocHeap Unit} initialLocHeap)
+      res = interpret [< P, P] (Ex1 {f = LocHeap Unit} initialLocHeap)
+  in snd (runLocHeap w' rho res ss)
+
+Ex2 : {f : Family} -> {auto fPsh : BoxCoalg f} ->
+  f [< P, P, P] -> LSFreeMonad f [< P, P, P]
+Ex2 val =
+  -- [< l1, l2, l3]
+  let l1 : [< P] ~> [< P] ++ [<P, P]
+      l1 = inl {w2 = [< P, P]}
+      l2 : [< P] ~> ([< P] ++ [< P]) ++ [< P]
+      l2 = inr {w1 = [< P], w2 = [< P, P]} . inl {w1 = [< P], w2 = [< P]}
+      l3 : [< P] ~> [< P, P] ++ [< P]
+      l3 = inr
+  in
+  readWrite _ l1 l2 $ -- l1 := !l2
+  readWrite _ l2 l3 $ -- l2 := !l3
+  pure _ val
+  -- [< l3, l3, l3]
+
+RunEx2 : (w' : World) -> ([< P, P, P] ~> w') -> StateIn w' -> StateIn w'
+RunEx2 w' rho ss =
+  let interpret = (LocHeapAlgebra .fold) LocHeapCoalg idFam
+      res = interpret [< P, P, P] (Ex2 {f = LocHeap Unit} pureLocHeap)
   in snd (runLocHeap w' rho res ss)
