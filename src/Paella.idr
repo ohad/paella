@@ -431,20 +431,14 @@ gPsh.extend alpha =
   sig.Free (sig.Free f) -|> sig.Free f
 fPsh.join = fPsh.extend idFam
 
-||| Type of reading a bit:
-||| ? : [[], a, []]
+data Val = V1 | V2 | V3
+
+||| Type of reading a Val:
+||| r : [a, [], [], []]
 ReadType : OpSig
 ReadType = MkOpSig
   { Args = [< P]
-  , Arity = [< [<], [<]]
-  }
-
-||| Type of writing a 0:
-||| w_0 : [a, []]
-Write0Type : OpSig
-Write0Type = MkOpSig
-  { Args = [< P]
-  , Arity = [< [<]]
+  , Arity = [< [<], [<], [<]]
   }
 
 ||| Type of writing a 1:
@@ -455,20 +449,28 @@ Write1Type = MkOpSig
   , Arity = [< [<]]
   }
 
+||| Type of writing a 2:
+||| w_2 : [a, []]
+Write2Type : OpSig
+Write2Type = MkOpSig
+  { Args = [< P]
+  , Arity = [< [<]]
+  }
+
+||| Type of writing a 3:
+||| w_3 : [a, []]
+Write3Type : OpSig
+Write3Type = MkOpSig
+  { Args = [< P]
+  , Arity = [< [<]]
+  }
+
 ||| Type of equality testing:
-||| ?_= : [[], a, a, []]
+||| ?_= : [[], a, a, []], true then false
 EqualTestType : OpSig
 EqualTestType = MkOpSig
   { Args = [< P, P]
   , Arity = [< [<], [<]]
-  }
-
-||| Type of restriction (new) to 0:
-||| nu_0 : [[a]]
-Restrict0Type : OpSig
-Restrict0Type = MkOpSig
-  { Args = [< ]
-  , Arity = [< [< P]]
   }
 
 ||| Type of restriction (new) to 1:
@@ -479,33 +481,57 @@ Restrict1Type = MkOpSig
   , Arity = [< [< P]]
   }
 
+||| Type of restriction (new) to 2:
+||| nu_2 : [[a]]
+Restrict2Type : OpSig
+Restrict2Type = MkOpSig
+  { Args = [< ]
+  , Arity = [< [< P]]
+  }
+
+||| Type of restriction (new) to 3:
+||| nu_3 : [[a]]
+Restrict3Type : OpSig
+Restrict3Type = MkOpSig
+  { Args = [< ]
+  , Arity = [< [< P]]
+  }
+
 LSSig : Signature
 LSSig = [
   ReadType,
-  Write0Type,
   Write1Type,
+  Write2Type,
+  Write3Type,
   EqualTestType,
-  Restrict0Type,
-  Restrict1Type
+  Restrict1Type,
+  Restrict2Type,
+  Restrict3Type
 ]
 
 readOpIndex : ReadType `Elem` LSSig
 readOpIndex = Here
 
-write0OpIndex : Write0Type `Elem` LSSig
-write0OpIndex = There Here
-
 write1OpIndex : Write1Type `Elem` LSSig
-write1OpIndex = There $ There Here
+write1OpIndex = There Here
+
+write2OpIndex : Write2Type `Elem` LSSig
+write2OpIndex = There $ There Here
+
+write3OpIndex : Write3Type `Elem` LSSig
+write3OpIndex = There $ There $ There Here
 
 equalTestOpIndex : EqualTestType `Elem` LSSig
-equalTestOpIndex = There $ There $ There Here
-
-restrict0OpIndex : Restrict0Type `Elem` LSSig
-restrict0OpIndex = There $ There $ There $ There Here
+equalTestOpIndex = There $ There $ There $ There Here
 
 restrict1OpIndex : Restrict1Type `Elem` LSSig
 restrict1OpIndex = There $ There $ There $ There $ There Here
+
+restrict2OpIndex : Restrict2Type `Elem` LSSig
+restrict2OpIndex = There $ There $ There $ There $ There $ There Here
+
+restrict3OpIndex : Restrict3Type `Elem` LSSig
+restrict3OpIndex = There $ There $ There $ There $ There $ There Here
 
 LSAlgebra : (f : Family) -> Type
 LSAlgebra = LSSig .AlgebraOver
@@ -517,28 +543,35 @@ LSTermAlgebra : (f : Family) -> (BoxCoalg f) -> LSAlgebra (LSFreeMonad f)
 LSTermAlgebra f fPsh = TermAlgebra LSSig f fPsh
 
 read : {f : Family} -> {auto fPsh : BoxCoalg f} ->
-  FamProd [< LSFreeMonad f, Env [< P], LSFreeMonad f] -|> LSFreeMonad f
-read w [< k0, p, k1] =
+  FamProd [< Env [< P], LSFreeMonad f, LSFreeMonad f, LSFreeMonad f] -|> 
+  LSFreeMonad f
+read w [< p, k1, k2, k3] =
   let alg = LSTermAlgebra f fPsh
       freePsh = cast
         {to = DAlg (LSFreeMonad f)}
         (BoxCoalgFree {sig = LSSig} fPsh)
       op = indexAll readOpIndex alg
-  in freePsh.uncurry op w [< [< freePsh.map inr k0, freePsh.map inr k1], p]
+  in freePsh.uncurry op w
+      [< [< freePsh.map inr k1, freePsh.map inr k2, freePsh.map inr k3], p]
 
-write : {f : Family} -> {auto fPsh : BoxCoalg f} -> Bool ->
+write : {f : Family} -> {auto fPsh : BoxCoalg f} -> Val ->
   FamProd [< Env [< P], LSFreeMonad f] -|> LSFreeMonad f
-write bit w [< p, k] =
+write val w [< p, k] =
   let alg = LSTermAlgebra f fPsh
       freePsh = cast
         {to = DAlg (LSFreeMonad f)}
         (BoxCoalgFree {sig = LSSig} fPsh)
       -- Don't know how to move the if up (probably need to set some implicits)
-      op0 = indexAll write0OpIndex alg
-      impl0 = freePsh.uncurry op0 w [< [< freePsh.map inr k], p]
       op1 = indexAll write1OpIndex alg
       impl1 = freePsh.uncurry op1 w [< [< freePsh.map inr k], p]
-  in if bit then impl1 else impl0
+      op2 = indexAll write2OpIndex alg
+      impl2 = freePsh.uncurry op2 w [< [< freePsh.map inr k], p]
+      op3 = indexAll write3OpIndex alg
+      impl3 = freePsh.uncurry op3 w [< [< freePsh.map inr k], p]
+  in case val of
+       V1 => impl1
+       V2 => impl2
+       V3 => impl3
 
 equal : {f : Family} -> {auto fPsh : BoxCoalg f} ->
   FamProd [< LSFreeMonad f, Env [< P], Env [< P], LSFreeMonad f] -|>
@@ -553,22 +586,27 @@ equal w [< k0, p, q, k1] =
       pq = cotuple p q
   in freePsh.uncurry op w [< [< freePsh.map inr k0, freePsh.map inr k1], pq]
 
-new : {f : Family} -> {auto fPsh : BoxCoalg f} -> Bool ->
+new : {f : Family} -> {auto fPsh : BoxCoalg f} -> Val ->
   [< P].shift (LSFreeMonad f) -|> LSFreeMonad f
-new bit w k =
+new val w k =
   let alg = LSTermAlgebra f fPsh
       freePsh = cast
         {to = DAlg (LSFreeMonad f)}
         (BoxCoalgFree {sig = LSSig} fPsh)
       -- Same issue as above
-      op0 = indexAll restrict0OpIndex alg
-      impl0 = freePsh.uncurry op0 w [< [< k], inr]
       op1 = indexAll restrict1OpIndex alg
       impl1 = freePsh.uncurry op1 w [< [< k], inr]
-  in if bit then impl1 else impl0
+      op2 = indexAll restrict2OpIndex alg
+      impl2 = freePsh.uncurry op2 w [< [< k], inr]
+      op3 = indexAll restrict3OpIndex alg
+      impl3 = freePsh.uncurry op3 w [< [< k], inr]
+  in case val of
+       V1 => impl1
+       V2 => impl2
+       V3 => impl3
 
 TypeOf : A -> Type
-TypeOf P = Bool
+TypeOf P = Val
 
 StateIn : Family
 StateIn w = ForAll w TypeOf
@@ -593,19 +631,22 @@ runHeap : Heap t w -> StateIn w -> Pair t (StateIn w)
 runHeap h ss = h ss
 
 -- Heap operations
-readHeapOp : FamProd [< Heap t, Env [< P], Heap t] -|> Heap t
-readHeapOp w [< k0, p, k1] ss =
-  let sp = getComponent (p _ Here) ss in
-  if sp then k0 ss else k1 ss
+readHeapOp : FamProd [< Env [< P], Heap t, Heap t, Heap t] -|> Heap t
+readHeapOp w [< p, k1, k2, k3] ss =
+  let sp = getComponent (p _ Here) ss
+  in case sp of
+       V1 => k1 ss
+       V2 => k2 ss
+       V3 => k3 ss
 
-writeHeapOp : Bool -> FamProd [< Env [< P], Heap t] -|> Heap t
-writeHeapOp b w [< p, k] ss =
+writeHeapOp : Val -> FamProd [< Env [< P], Heap t] -|> Heap t
+writeHeapOp val w [< p, k] ss =
   let (t, ss') = k ss in
-  (t, setComponent (p _ Here) ss' b)
+  (t, setComponent (p _ Here) ss' val)
 
-newHeapOp : Bool -> [< P].shift (Heap t) -|> Heap t
-newHeapOp b w k ss =
-  let combined = joinAll {sy = [< P]} [< b] ss
+newHeapOp : Val -> [< P].shift (Heap t) -|> Heap t
+newHeapOp val w k ss =
+  let combined = joinAll {sy = [< P]} [< val] ss
       (t, ss') = k combined
   in (t, snd (splitAll {sy = [<P]} ss'))
 
@@ -631,24 +672,26 @@ LocHeapCoalg = MkBoxCoalg $ \w, h, w'', rho => \w', rho' => h w' (rho' . rho)
 LocHeapAlg : {t : Type} -> DAlg (LocHeap t)
 LocHeapAlg = cast {from = BoxCoalg (LocHeap t)} LocHeapCoalg
 
-readLocHeapOp : FamProd [< LocHeap t, Env [< P], LocHeap t] -|> LocHeap t
-readLocHeapOp w [< k0, p, k1] w' rho =
-  let k0' = k0 w' rho
-      k1' = k1 w' rho
+readLocHeapOp :
+  FamProd [< Env [< P], LocHeap t, LocHeap t, LocHeap t] -|> LocHeap t
+readLocHeapOp w [< p, k1, k2, k3] w' rho =
+  let k1' = k1 w' rho
+      k2' = k2 w' rho
+      k3' = k3 w' rho
       p' = rho . p
-  in readHeapOp w' [< k0', p', k1']
+  in readHeapOp w' [< p', k1', k2', k3']
 
-writeLocHeapOp : Bool -> FamProd [< Env [< P], LocHeap t] -|> LocHeap t
-writeLocHeapOp b w [< p, k] w' rho =
+writeLocHeapOp : Val -> FamProd [< Env [< P], LocHeap t] -|> LocHeap t
+writeLocHeapOp val w [< p, k] w' rho =
   let p' = rho . p
       k' = k w' rho
-  in writeHeapOp b w' [< p', k']
+  in writeHeapOp val w' [< p', k']
 
-newLocHeapOp : Bool -> [< P].shift (LocHeap t) -|> LocHeap t
-newLocHeapOp b w k w' rho =
+newLocHeapOp : Val -> [< P].shift (LocHeap t) -|> LocHeap t
+newLocHeapOp val w k w' rho =
   let rho' = bimap {w1 = [< P], w1' = [< P]} idRen rho
       k' = k ([< P] ++ w') rho'
-  in newHeapOp b w' k'
+  in newHeapOp val w' k'
 
 equalLocHeapOp :
   FamProd [< LocHeap t, Env [< P], Env [< P], LocHeap t] -|> LocHeap t
@@ -668,40 +711,41 @@ readLocHeapOp' =
               [< (LocHeap t) ^ ReadType .Arity
               ,  Env (ReadType .Args)
               ] -|> LocHeap t
-      op' w [< [< k0, k1], p] = readLocHeapOp w
-        [< LocHeapCoalg .map idLeft k0
-        ,  p
+      op' w [< [< k1, k2, k3], p] = readLocHeapOp w
+        [< p
         ,  LocHeapCoalg .map idLeft k1
+        ,  LocHeapCoalg .map idLeft k2
+        ,  LocHeapCoalg .map idLeft k3
         ]
       coalg : BoxCoalg ((LocHeap t) ^ ReadType .Arity)
       coalg = ArityExponential {ws = ReadType .Arity} LocHeapCoalg
   in (cast coalg).curry op'
 
-writeLocHeapOp' : {t : Type} -> Bool ->
-  (LocHeap t) ^ Write0Type .Arity -|> (Write0Type .Args).shift (LocHeap t)
-writeLocHeapOp' b =
+writeLocHeapOp' : {t : Type} -> Val ->
+  (LocHeap t) ^ Write1Type .Arity -|> (Write1Type .Args).shift (LocHeap t)
+writeLocHeapOp' val =
   let op' : FamProd
-              [< (LocHeap t) ^ Write0Type .Arity
-              ,  Env (Write0Type .Args)
+              [< (LocHeap t) ^ Write1Type .Arity
+              ,  Env (Write1Type .Args)
               ] -|> LocHeap t
-      op' w [< [< k], p] = writeLocHeapOp b w
+      op' w [< [< k], p] = writeLocHeapOp val w
         [< p
         ,  LocHeapCoalg .map idLeft k
         ]
-      coalg : BoxCoalg ((LocHeap t) ^ Write0Type .Arity)
-      coalg = ArityExponential {ws = Write0Type .Arity} LocHeapCoalg
+      coalg : BoxCoalg ((LocHeap t) ^ Write1Type .Arity)
+      coalg = ArityExponential {ws = Write1Type .Arity} LocHeapCoalg
   in (cast coalg).curry op'
 
-newLocHeapOp' : {t : Type} -> Bool ->
-  (LocHeap t) ^ Restrict0Type .Arity -|> (Restrict0Type .Args).shift (LocHeap t)
-newLocHeapOp' b =
+newLocHeapOp' : {t : Type} -> Val ->
+  (LocHeap t) ^ Restrict1Type .Arity -|> (Restrict1Type .Args).shift (LocHeap t)
+newLocHeapOp' val =
   let op' : FamProd
-              [< (LocHeap t) ^ Restrict0Type .Arity
-              ,  Env Restrict0Type .Args
+              [< (LocHeap t) ^ Restrict1Type .Arity
+              ,  Env Restrict1Type .Args
               ] -|> LocHeap t
-      op' w [< [< k], p] = newLocHeapOp b w k
-      coalg : BoxCoalg ((LocHeap t) ^ Restrict0Type .Arity)
-      coalg = ArityExponential {ws = Restrict0Type .Arity} LocHeapCoalg
+      op' w [< [< k], p] = newLocHeapOp val w k
+      coalg : BoxCoalg ((LocHeap t) ^ Restrict1Type .Arity)
+      coalg = ArityExponential {ws = Restrict1Type .Arity} LocHeapCoalg
   in (cast coalg).curry op'
 
 equalLocHeapOp' : {t : Type} ->
@@ -726,11 +770,13 @@ equalLocHeapOp' =
 LocHeapAlgebra : {t : Type} -> LSAlgebra (LocHeap t)
 LocHeapAlgebra = [
   readLocHeapOp',
-  writeLocHeapOp' False,
-  writeLocHeapOp' True,
+  writeLocHeapOp' V1,
+  writeLocHeapOp' V2,
+  writeLocHeapOp' V3,
   equalLocHeapOp',
-  newLocHeapOp' False,
-  newLocHeapOp' True
+  newLocHeapOp' V1,
+  newLocHeapOp' V2,
+  newLocHeapOp' V3
 ]
 
 pureLocHeap : LocHeap Unit w
@@ -752,11 +798,11 @@ readWrite : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
   LSFreeMonad f w -> -- Continuation
   LSFreeMonad f w
 readWrite w l1 l2 k =
-  let k' = \b => write b w [< l1, k]
-  in read w [< k' True, l2, k' False]
+  let k' = \val => write val w [< l1, k]
+  in read w [< l2, k' V1, k' V2, k' V3]
 
 -- swap value of two locations with temp location
--- temp = new 0
+-- temp = new V1
 -- temp := !l1
 -- l1 := !l2
 -- l2 := !temp
@@ -767,7 +813,7 @@ swap : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
   LSFreeMonad f w
 swap w l1 l2 k =
   let coalg = BoxCoalgFree fPsh in
-  new False _ (
+  new V1 _ (
     let temp : [<P] ~> [< P] ++ w
         temp = inl
         l1' = inr . l1
