@@ -295,7 +295,6 @@ BoxCoalgProd sbox = MkBoxCoalg $ \w, sx, w', rho =>
 Env : World -> Family
 Env w = (w ~>)
 
-
 -- (f.shift) is actually an exponential
 (.eval) : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
        FamProd [< w1.shift f, Env w1] -|> f
@@ -640,9 +639,7 @@ readHeapOp w [< p, k1, k2, k3] ss =
        V3 => k3 ss
 
 writeHeapOp : Val -> FamProd [< Env [< P], Heap t] -|> Heap t
-writeHeapOp val w [< p, k] ss =
-  let (t, ss') = k ss in
-  (t, setComponent (p _ Here) ss' val)
+writeHeapOp val w [< p, k] ss = k (setComponent (p _ Here) ss val)
 
 newHeapOp : Val -> [< P].shift (Heap t) -|> Heap t
 newHeapOp val w k ss =
@@ -656,6 +653,31 @@ extendHeap w h sv =
   let (v', sv') = splitAll {sy = [< P]} sv
       (x, sv'') = h sv'
   in (x, joinAll v' sv')
+
+-- l1 := !l2
+readWriteHeap :
+  (w : World) ->
+  Env [< P] w -> -- Location 1
+  Env [< P] w -> -- Location 2
+  Heap t w ->    -- Continuation
+  Heap t w
+readWriteHeap w l1 l2 k =
+  let k' = \val => writeHeapOp val w [< l1, k]
+  in readHeapOp  w [< l2, k' V1, k' V2, k' V3]
+
+ExHeap1 : Heap Unit [< P, P, P]
+ExHeap1 =
+  -- [< l1, l2, l3]
+  let l1 : [< P] ~> [< P] ++ [<P, P]
+      l1 = inl {w2 = [< P, P]}
+      l2 : [< P] ~> ([< P] ++ [< P]) ++ [< P]
+      l2 = inr {w1 = [< P], w2 = [< P, P]} . inl {w1 = [< P], w2 = [< P]}
+      l3 : [< P] ~> [< P, P] ++ [< P]
+      l3 = inr
+  in
+  readWriteHeap _ l2 l3 $
+  readWriteHeap _ l1 l2 $
+  pureHeap ()
 
 -- Viewed as the right Kan extension of Heap along the inclusion Inj -> Fin
 LocHeap : Type -> Family
@@ -838,9 +860,8 @@ RunEx1 w' rho ss =
       res = interpret [< P, P] (Ex1 {f = LocHeap Unit} initialLocHeap)
   in snd (runLocHeap w' rho res ss)
 
-Ex2 : {f : Family} -> {auto fPsh : BoxCoalg f} ->
-  f [< P, P, P] -> LSFreeMonad f [< P, P, P]
-Ex2 val =
+Ex2 : LSFreeMonad (LocHeap Unit) [< P, P, P]
+Ex2 =
   -- [< l1, l2, l3]
   let l1 : [< P] ~> [< P] ++ [<P, P]
       l1 = inl {w2 = [< P, P]}
@@ -849,13 +870,12 @@ Ex2 val =
       l3 : [< P] ~> [< P, P] ++ [< P]
       l3 = inr
   in
-  readWrite _ l1 l2 $ -- l1 := !l2
-  readWrite _ l2 l3 $ -- l2 := !l3
-  pure _ val
-  -- [< l3, l3, l3]
+  readWrite _ l2 l3 $
+  readWrite _ l1 l2 $
+  pure _ pureLocHeap
 
 RunEx2 : (w' : World) -> ([< P, P, P] ~> w') -> StateIn w' -> StateIn w'
 RunEx2 w' rho ss =
   let interpret = (LocHeapAlgebra .fold) LocHeapCoalg idFam
-      res = interpret [< P, P, P] (Ex2 {f = LocHeap Unit} pureLocHeap)
+      res = interpret [< P, P, P] Ex2
   in snd (runLocHeap w' rho res ss)
