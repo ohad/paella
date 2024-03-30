@@ -1,16 +1,16 @@
 module Paella
 
-import Data.DPair
+import public Data.DPair
 
-import Data.SnocList
-import Data.SnocList.Elem
-import Data.SnocList.Quantifiers
+import public Data.SnocList
+import public Data.SnocList.Elem
+import public Data.SnocList.Quantifiers
 
-import Data.List
-import Data.List.Elem
-import Data.List.Quantifiers
+import public Data.List
+import public Data.List.Elem
+import public Data.List.Quantifiers
 
-import Data.Fin
+import public Data.Fin
 
 namespace Data.List.Quantifiers
   public export
@@ -170,52 +170,64 @@ namespace Data.SnocList.Quantifiers
 
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type
+public export
 data A = ConsCell
 
+public export
 ||| A 0-th order context, operation's arities will be a
 ||| finite list of worlds.
 World : Type
 World = SnocList A
 
 ||| A `x : Var a w` is a first-order variable of paramter type `a` in `w`
+public export
 data Var : A -> World -> Type where
   Here : Var a (w :< a)
   There : Var a w -> Var a (w :< b)
 
 infixr 1 ~>
 
+public export
 ||| A renaming from src to tgt, sending each variable in src to a
 ||| variable in tgt
 (~>) : (src, tgt : World) -> Type
 w1 ~> w2 = (a : A) -> Var a w1 -> Var a w2
 
+public export
 -- (World, (~>)) is a category
 idRen : w ~> w
 idRen a x = x
 
+public export
 (.) : w2 ~> w3 -> w1 ~> w2 -> w1 ~> w3
 (.) f g a x = f a (g a x)
 
+public export
 Family : Type
 Family = World -> Type
 
 infixr 1 -|>, =|>, .:.
 
+public export
 -- Family transformation
 (-|>) : (f, g : Family) -> Type
 f -|> g = (w : World) -> f w -> g w
 
+public export
 -- Closed version
 (.elem) : (f : Family) -> Type
 f.elem = (w : World) -> f w
 
 
+public export
 idFam : {f : Family} -> f -|> f
 idFam w x = x
 
+public export
 (.:.) : {f,g,h : Family} -> g -|> h -> f -|> g -> f -|> h
 (beta .:. alpha) w = beta w . alpha w
 
+public export
 PresheafOver : Family -> Type
 PresheafOver f = {w1, w2 : World} -> (rho : w1 ~> w2) ->
   f w1 -> f w2
@@ -271,65 +283,81 @@ namespace Coalgebra
   (=|>) : {f,g : Family} -> (fAlg : BoxCoalg f) -> (gAlg : BoxCoalg g) -> Type
   (=|>) {f,g} _ _ = f -|> g
 
+public export
 {f : _} -> Cast (DAlg f) (BoxCoalg f) where
   cast alg = MkBoxCoalg $ \w, x, w', rho => alg.map rho x
 
+public export
 {f : _} -> Cast (BoxCoalg f) (DAlg f) where
   cast coalg = MkDAlg $ \w, closure => coalg.map closure.weaken closure.val
 
+public export
 {f : _} -> Cast (PresheafOver f) (BoxCoalg f) where
   cast psh = MkBoxCoalg $ \w, x, w', rho => psh rho x
 
+public export
 {f : _} -> Cast (PresheafOver f) (DAlg f) where
   cast psh = MkDAlg $ \w, closure =>
     psh closure.weaken closure.val
 
+public export
 ||| Fiore-transform of presheaf exponentiation: f^(Yoneda w1).
 (.shift) : World -> Family -> Family
 w1.shift f w2 = f (w1 ++ w2)
 
+public export
 (.shiftLeft) : World -> Family -> Family
 w1.shiftLeft f w2 = f (w2 ++ w1)
 
+public export
 split : {w2 : World} -> Var a (w1 ++ w2) -> Either (Var a w1) (Var a w2)
 split {w2 = [<]     } x = Left x
 split {w2 = pos :< a} Here = Right Here
 split {w2 = pos :< b} (There x) = bimap id (There) (split x)
 
+public export
 inl : {w2 : World} -> w1 ~> w1 ++ w2
 inl {w2 = [<]} a x = x
 inl {w2 = w2 :< b} a x = There (inl a x)
 
+public export
 inr : w2 ~> w1 ++ w2
 inr {w2 = .(w2 :< a)} a Here = Here
 inr {w2 = .(w2 :< b)} a (There x) = There (inr a x)
 
+public export
 cotuple : {w2 : World} -> (w1 ~> w) -> (w2 ~> w) -> w1 ++ w2 ~> w
 cotuple {w2 = [<]    } f g   a  x        = f a x
 cotuple {w2 = w2 :< b} f g .(b) Here     = g b Here
 cotuple {w2 = w2 :< b} f g   a (There x) = cotuple f (\c, y => g c (There y)) a x
 
+public export
 swapRen : {w1, w2 : World} -> (w1 ++ w2) ~> (w2 ++ w1)
 swapRen = cotuple inr inl
 
+public export
 ||| Monoidal action on maps
 bimap : {w1, w2, w1', w2' : World} -> (w1 ~> w1') -> (w2 ~> w2') -> (w1 ++ w2) ~> (w1' ++ w2')
 bimap f g a x = case split x of
   Left  y => inl a (f a y)
   Right y => inr a (g a y)
 
+public export
 -- (f.shift) is actually a presheaf
 (.shiftAlg) : (w1 : World) -> {f : Family} -> DAlg f -> DAlg (w1.shift f)
 w1.shiftAlg {f} alg = MkDAlg $ \w, (Close ctx rho v) =>
   alg.map (Paella.bimap idRen rho) v
 
+public export
 (.shiftCoalg) : (w1 : World) -> {f : Family} -> BoxCoalg f -> BoxCoalg (w1.shift f)
 w1.shiftCoalg {f} boxCoalg = cast (w1.shiftAlg $ cast {to = DAlg f} boxCoalg)
 
+public export
 ||| The product family is given pointwise
 FamProd : SnocList Family -> Family
 FamProd sf w = ForAll sf $ \f => f w
 
+public export
 ||| Presheaf structure of product presheaf
 BoxCoalgProd : {sf : SnocList Family} -> ForAll sf (\f => BoxCoalg f) ->
   BoxCoalg $ FamProd sf
@@ -338,6 +366,7 @@ BoxCoalgProd sbox = MkBoxCoalg $ \w, sx, w', rho =>
     sbox
     sx
 
+public export
 tuple : {f : Family} -> {sg : SnocList Family} ->
   ForAll sg (\g => f -|> g) ->
   f -|> FamProd sg
@@ -348,25 +377,31 @@ projection : {sf : SnocList Family} -> (i : Fin $ length sf) ->
   FamProd sf -|> (sf !! i)
 -}
 
+public export
 Env : World -> Family
 Env w = (w ~>)
 
+public export
 swap : FamProd [< f , g] -|> FamProd [< g, f]
 swap w [< x , y] = [< y , x]
 
+public export
 -- (f.shift) is actually an exponential
 (.eval) : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
        FamProd [< w1.shift f, Env w1] -|> f
 fPsh.eval w [< u, rho] = fPsh.map (cotuple rho idRen) u
 
+public export
 (.curry) : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
   (FamProd [< f, Env w1] -|> g) -> f -|> w1.shift g
 fPsh.curry alpha w u = alpha (w1 ++ w) [< fPsh.map inr u, inl]
 
+public export
 (.curry') : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
   (FamProd [< Env w1, f] -|> g) -> f -|> w1.shift g
 fPsh.curry' alpha w u = alpha (w1 ++ w) [< inl, fPsh.map inr u]
 
+public export
 (.uncurry) : {w1 : World} -> {g : Family} -> (gPsh : DAlg g) ->
   (f -|> w1.shift g) -> (FamProd [< f, Env w1] -|> g)
 gPsh.uncurry beta w [< u, rho] = gPsh.map (cotuple rho idRen) (beta w u)
@@ -402,10 +437,12 @@ abst :
   (f -% g).elem
 abst f w w' [< rho , x] = f w' x
 
+public export
 ExpCoalg : BoxCoalg (f -% g)
 ExpCoalg = MkBoxCoalg $ \w, alpha, w', rho, w'', [< rho' , x] =>
   alpha w'' [< rho' . rho, x]
 
+public export
 (.shiftIntoRepr) : {w0 : World} -> {g : Family} ->
   (PresheafOver g) ->
   ((Env w0) -% g) -|> (w0.shift g)
@@ -413,6 +450,7 @@ psh.shiftIntoRepr =
   (cast {from = BoxCoalg (Env w0 -% g)} $ ExpCoalg).curry
     {g, f = (Env w0) -% g} $ eval {f = Env w0, g = g}
 
+public export
 (.shiftFromRepr) : {w0 : World} -> {g : Family} ->
   (PresheafOver g) ->
    (w0.shift g) -|> ((Env w0) -% g)
@@ -421,39 +459,47 @@ psh.shiftFromRepr =
       algeb = (cast {to = DAlg g} psh).eval
   in (w0.shiftCoalg coalg).map.abst algeb
 
+public export
 -- Did we not define this already?
 varCoalg : {a : A} -> BoxCoalg (Var a)
 varCoalg = MkBoxCoalg $ \w, pos, w', rho => rho a pos
 
+public export
 record OpSig where
   constructor MkOpSig
   Args  : Family
   Arity : Family
 
+public export
 Signature : Type
 Signature = List OpSig
 
 infixl 7 ^
 
+public export
 ||| The exponentiation of f by the sum of representables coprod_{w in ws} y(w)
 (^) : Family -> SnocList World -> Family
 f ^ ws = FamProd (map (\w => w.shift f) ws)
 
+public export
 ArityExponential : {f : Family} -> (BoxCoalg f) ->
   {ws : SnocList World} -> BoxCoalg (f ^ ws)
 ArityExponential {f, ws} boxCoalg
   = BoxCoalgProd $ rippleAll $ tabulate _
                  $ \w => w.shiftCoalg boxCoalg
 
+public export
 ||| The sum family is given pointwise
 FamSum : SnocList Family -> Family
 FamSum sf w = ForAny sf $ \f => f w
 
+public export
 ||| Presheaf structure of sum presheaf
 BoxCoalgSum : {sf : SnocList Family} -> ForAll sf (\f => BoxCoalg f) ->
   BoxCoalg $ FamSum sf
 BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho => applyAny (\f, coalg => coalg.map rho) salg sx
 
+public export
 -- (f ^ ws) is actually an exponential
 (.evalSum) : {ws : SnocList World} -> {f : Family} -> (fPsh : DAlg f) ->
        FamProd [< f ^ ws, FamSum (map Env ws)] -|> f
@@ -463,6 +509,7 @@ fPsh.evalSum w [< u, rho] =
                 u
                 rho
 
+public export
 (.currySum) : {ws : SnocList World} -> {f : Family} -> (fPsh : DAlg f) ->
   (FamProd [< f, FamSum (map Env ws)] -|> g) -> f -|> g ^ ws
 fPsh.currySum {ws = [<]} alpha w u = [<]
@@ -470,38 +517,45 @@ fPsh.currySum {ws = ws' :< w'} alpha w u =
   rippleAll (tabulateElem (ws' :< w')
   (\w1, pos => alpha (w1 ++ w) [< fPsh.map inr u, rippleAny {xs = ws' :< w'} {f = Env} (injectAny pos inl)]))
 
+public export
 (.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (gPsh : DAlg g) ->
   (f -|> g ^ ws) -> (FamProd [< f, FamSum (map Env ws)] -|> g)
 gPsh.uncurrySum beta w [< u, rho] =
   forgetAny $ applyMapAllAny (\w1, x, rho' => gPsh.map (cotuple rho' idRen) x) (beta w u) rho
 
+public export
 expMapSumRep : {ws : SnocList World} ->
   {f,g : Family} ->
   (f -|> g) -> (f ^ ws) -|> (g ^ ws)
 expMapSumRep alpha w sx = mapAll (\x, y => alpha (x ++ w) y) sx
 
+public export
 expMap :
   {f,g,e : Family} ->
   (f -|> g) -> (e -% f) -|> (e -% g)
 expMap {f,g,e} alpha = ExpCoalg .map.abst (alpha .:. eval)
 
+public export
 data (.Free) : Signature -> Family -> Family where
-  Return : f -|> sig.Free f
+  Return : x -|> sig.Free x
   Op : {op : OpSig} ->
-    {f : Family} ->
+    {x : Family} ->
     op `Elem` sig ->
     -- Argument
-    FamProd [< op.Args , op.Arity -% sig.Free f]
-    -|> sig.Free f
+    FamProd [< op.Args , op.Arity -% sig.Free x]
+    -|> sig.Free x
 
+public export
 record FunctorialOpSig (op : OpSig) where
   constructor MkFunOpSig
   Args  : PresheafOver op.Args
   Arity : PresheafOver op.Arity
 
+public export
 FunctorialSignature : Signature -> Type
 FunctorialSignature sig = ForAll sig $ FunctorialOpSig
 
+public export
 BoxCoalgFree : {sig : Signature} -> {f : Family} ->
   FunctorialSignature sig ->
   BoxCoalg f -> BoxCoalg (sig.Free f)
@@ -515,10 +569,12 @@ BoxCoalgFree sigFunc coalg = MkBoxCoalg $ \w, term, w', rho =>
 
 -- Huh. Didn't need the Arity's functorial action here
 
+public export
 (.AlgebraOver) : Signature -> Family -> Type
 sig.AlgebraOver f = ForAll sig $ \op =>
   (op.Arity -% f) -|> (op.Args -% f)
 
+public export
 MkAlgebraOver : {sig : Signature} -> {f : Family} ->
   (ForAll sig $ \op =>
     (FamProd [< op.Arity -% f , op.Args] -|> f))
@@ -529,6 +585,7 @@ MkAlgebraOver = mapPropertyWithRelevant
 
 -- Powers
 
+public export
 swapExps : {a,b,f : Family} ->
   (PresheafOver b) =>
   a -% (b -% f) -|> b -% (a -% f)
@@ -539,6 +596,7 @@ swapExps @{bPsh} =
   \w, [<[< h, x], y] => eval w [< eval w [< h, y], x]
   )
 
+public export
 liftOp : {gamma, arity, args, f : Family} ->
   (PresheafOver arity) => (PresheafOver args) => (PresheafOver gamma) =>
   (op : arity -% f -|> args -% f) ->
@@ -546,6 +604,7 @@ liftOp : {gamma, arity, args, f : Family} ->
 liftOp @{arityPsh} @{argsPsh} @{gammaPsh} op =
   swapExps @{argsPsh} .:. (expMap op) .:. swapExps @{gammaPsh}
 
+public export
 liftAlg : {sig : Signature} -> {gamma, f : Family} ->
   (sigFuncs : FunctorialSignature sig) =>
   (gammaPsh : PresheafOver gamma) =>
@@ -555,6 +614,7 @@ liftAlg @{sigFuncs} alg = zipPropertyWithRelevant (\optor,sigFunc, op =>
     liftOp @{sigFunc.Arity} @{sigFunc.Args} @{gammaPsh} op)
   sigFuncs alg
 
+public export
 curryOp : (sig : Signature) ->
   (f : Family) -> (BoxCoalg f) ->
   (op : OpSig) -> op `Elem` sig ->
@@ -562,14 +622,17 @@ curryOp : (sig : Signature) ->
 curryOp sig f coalg op pos =
   (ExpCoalg .map).abst (Op pos .:. swap)
 
+public export
 TermAlgebra : {sig : Signature} ->
   (f : Family) -> (BoxCoalg f) -> sig.AlgebraOver (sig.Free f)
 TermAlgebra {sig} f coalg = tabulateElem sig $
   curryOp sig f coalg
 
+public export
 pure : {sig : Signature} -> {f : Family} -> f -|> sig.Free f
 pure = Return
 
+public export
 (.fold) : {sig : Signature} -> {f,g : Family} ->
   sig.AlgebraOver g ->
   (f -|> g) ->
@@ -581,10 +644,12 @@ a.fold env w (Op {op} pos .(w) [< arg, k]) =
       folded = g_op (expMap {e = op.Arity} fold w k)
   in eval w [< folded, arg]
 
+public export
 (.extend) :  {sig : Signature} -> {f,g : Family} -> BoxCoalg g ->
   (f -|> sig.Free g) -> (sig.Free f -|> sig.Free g)
 gPsh.extend alpha = (TermAlgebra g gPsh).fold alpha
 
+public export
 (.extendStrength) :  {sig : Signature} ->
   (sigFuncs : FunctorialSignature sig) =>
   {gamma, f,g : Family} ->
@@ -598,6 +663,7 @@ gPsh.extendStrength alpha  =
 
 infixr 1 >>==
 
+public export
 (>>==) : {sig : Signature} ->
   {gammas : SnocList Family} ->
   {f,g : Family} ->
@@ -614,28 +680,34 @@ infixr 1 >>==
                    (BoxCoalgProd $ mapPropertyWithRelevant (\_,psh => psh) gammaPsh).map})
                 (\w,[< env, x] => k w (env :< x)))
       .:. tuple [<\_ => id,  xs]
+
+public export
 (.join) : {sig : Signature} -> {f : Family} -> BoxCoalg f ->
   sig.Free (sig.Free f) -|> sig.Free f
 fPsh.join = fPsh.extend idFam
 
+public export
 -- Postulate: each parameter has a type
 -- For now, just cons cells
 TypeOf : A -> Family
 TypeOf ConsCell =
   (FamProd [< const String, Var ConsCell])
 
+public export
 TypeOfFunctoriality : (a : A) -> PresheafOver $ TypeOf a
 -- Should propagate structure more nicely
 TypeOfFunctoriality ConsCell rho ([< str , loc]) =
   [< str , rho _ loc]
 
 %hint
+public export
 TypeOfBoxFunctoriality : (a : A) -> BoxCoalg $ TypeOf a
 -- Should propagate structure more nicely
 TypeOfBoxFunctoriality a = cast {from = PresheafOver _} (TypeOfFunctoriality a)
 
 
 
+public export
 ||| Type of reading an A-cell
 readType : A -> OpSig
 readType a = MkOpSig
@@ -643,6 +715,7 @@ readType a = MkOpSig
   , Arity = TypeOf a
   }
 
+public export
 ||| Type of writing an a
 ||| w_0 : [a, []]
 writeType : A -> OpSig
@@ -652,6 +725,7 @@ writeType a = MkOpSig
   }
 
 
+public export
 ||| Allocate a fresh cell storing an a value
 newType : A -> OpSig
 newType a = MkOpSig
@@ -659,6 +733,7 @@ newType a = MkOpSig
   , Arity = Var a
   }
 
+public export
 LSSig : Signature
 LSSig = [
   readType ConsCell,
@@ -667,6 +742,7 @@ LSSig = [
 ]
 
 %hint
+public export
 LSSigFunc : FunctorialSignature LSSig
 LSSigFunc =
   [ -- read
@@ -690,11 +766,13 @@ LSSigFunc =
 -- Probably better to define the generic operations generically
 -- and instantiate to these
 
+public export
 read : Var ConsCell -|> LSSig .Free (TypeOf ConsCell)
 read w loc =
   Op (LSSig ?! 0) w
      [< loc , abst pure w]
 
+public export
 write : FamProd [< Var ConsCell , TypeOf ConsCell] -|>
           LSSig .Free (const ())
 write w locval =
@@ -702,6 +780,7 @@ write w locval =
      [< locval , abst pure w]
 
 
+public export
 new : FamProd [< [<ConsCell].shiftLeft (TypeOf ConsCell)] -|>
       LSSig .Free (Var ConsCell)
 new w [<val] =
@@ -711,39 +790,47 @@ new w [<val] =
   in Op (LSSig ?! 2) w
     [< val' , abst pure w]
 
+public export
 Heaplet : (shape : World) -> Family
 Heaplet shape = FamProd (map TypeOf shape)
 
+public export
 (!!) : Heaplet shape w -> Var a shape ->
   TypeOf a w
 (h :< x) !! Here = x
 [<]      !! (There pos) impossible
 (h :< x) !! (There pos) = h !! pos
 
+public export
 record Update (a : A) (shape, w : World) where
   constructor (::=)
   loc : Var a shape
   val : TypeOf a w
 
+public export
 (.update) : Heaplet shape w -> Update a shape w -> Heaplet shape w
 (h :< old).update (Here ::= new) = (h :< new)
 [<].update (There pos ::= v) impossible
 (h :< x).update (There pos ::= v) = h.update (pos ::= v) :< x
 
+public export
 HeapletCoalg : {shape : World} -> BoxCoalg (Heaplet shape)
 HeapletCoalg = MkBoxCoalg $ \w, heaplet,w',rho =>
   mapAll
     (\a => TypeOfFunctoriality a rho)
     heaplet
 
+public export
 Heap : Family
 Heap w = Heaplet w w
 
+public export
 Ex1 : Heap [< ConsCell, ConsCell]
 Ex1 = [< [< "first of singleton", There Here]
       ,  [< "loop" , Here]
       ]
 
+public export
 extendHeap : {w : World} ->
   FamProd [< Heap , w.shift $ Heaplet w ] -|> w.shift Heap
 extendHeap {w} w' [< heap , init] =
@@ -753,6 +840,7 @@ extendHeap {w} w' [< heap , init] =
      -- Probably terrible performance, but meh
   in rippleAll (v ++ u)
 
+public export
 record Private (f : Family) (w : World) where
   constructor Hide
   ctx : World
@@ -773,7 +861,7 @@ namespace Private
      w0 ---> w2            w0 ---> w2
  rho1|            =>  rho1 |       | rho1'
      v                     v       V
-     w1                    w1 ---> w3
+     w1                    w1 ---> w3 = Im[w0] + (w1 - Im[w0]) + (w2 - Im[w0])
                               rho2'
    in an independent way. The result is indeed a pushout,
    and in fact a pullback too, but that's not the correct
@@ -798,12 +886,13 @@ namespace Private
    then it is easier to calculate:
            rho2
         w0 ---> w2
-    inl |       | inr
+    inr |       | inr
         v       V
       w+w0 ---> w + w2
         w + rho2
 -}
 
+public export
 PrivateCoal : {f : Family} ->
   (coalg : BoxCoalg f) -> BoxCoalg (Private f)
 PrivateCoal coalg = MkBoxCoalg $ \w, hidden, w', rho => Hide
@@ -811,6 +900,7 @@ PrivateCoal coalg = MkBoxCoalg $ \w, hidden, w', rho => Hide
   , val = coalg.map (Paella.bimap idRen rho) hidden.val
   }
 
+public export
 -- We can hide locations
 hide : {w1,w : World} -> {f : Family} ->
   Private f (w1 ++ w) -> Private f w
@@ -822,18 +912,22 @@ hide hidden =
               hidden.val
     }
 
+public export
 LSHandlerCarrier : (f : Family) -> Family
 LSHandlerCarrier f = Heap -% Private f
 
+public export
 LSHandlerPsh : (coalg : BoxCoalg f) ->
   BoxCoalg $ LSHandlerCarrier f
 LSHandlerPsh coalg = ExpCoalg
 
+public export
 val : {f : Family} -> {coalg : BoxCoalg f} ->
   coalg =|> (LSHandlerPsh coalg)
 val = coalg.map.abst $ \w, [< v, heap] =>
   Private.pure {f} w v
 
+public export
 -- Heap's LSAlgebra structure
 LSalg : {f : Family} -> {coalg : BoxCoalg f} ->
   LSSig .AlgebraOver (LSHandlerCarrier f)
@@ -869,37 +963,10 @@ LSalg = MkAlgebraOver
       in hide result
   ]
 
-
-ExProg' : Nat -> (acc : SnocList String) ->
-   Var ConsCell -|> LSSig .Free (const $ List String)
-ExProg' 0     acc roots loc = pure roots (acc <>> [])
-ExProg' (S n) acc roots loc =
-  let %hint foo : BoxCoalg (TypeOf ConsCell)
-      foo = TypeOfBoxFunctoriality ConsCell
-  in (
-                                  (\roots,[< loc] =>
-  read roots loc) >>== (\roots, [<loc, [< str, loc']] =>
-    ExProg' n (acc :< str) roots loc'))
-  roots [< loc]
-
-
-
-ExProg : LSSig .Free (const $ List String) [<]
-ExProg =
-  let %hint foo : BoxCoalg (TypeOf ConsCell)
-      foo = TypeOfBoxFunctoriality ConsCell
-  in (                                 -- noise (context management)
-  {- code -}                                   (\roots, [<              ] =>
-  new roots [< [<"1st", Here]]     ) >>== (\roots, [<loc           ] =>
-  new roots [< [<"2nd", There loc]]) >>== (\roots, [<loc, loc'     ] =>
-  read roots loc                        ) >>== (\roots, [<loc, loc', [< str, loc'']] =>
-  write roots [< loc, [< str, loc']]    ) >>== (\roots, [<loc, loc', val, _] =>
-                      ExProg' 15 [<] roots loc'))
-  -- Some more noise:
-  [<] -- Initial roots
-  [<] -- Initial environment
-
-ExHandle : Private (const (List String)) [<]
-ExHandle =
+public export
+handle :
+  LSSig .Free (const $ List String) [<] ->
+  Private (const (List String)) [<]
+handle comp =
   let coalg = MkBoxCoalg (\w, strs, b, f => strs)
-  in (LSalg {coalg}).fold (val {coalg}) [<] ExProg [<] [< idRen,[<]]
+  in (LSalg {coalg}).fold (val {coalg}) [<] comp [<] [< idRen,[<]]
