@@ -801,17 +801,10 @@ LocHeapAlgebra = [
   newLocHeapOp' V3
 ]
 
-pureLocHeap : LocHeap Unit w
-pureLocHeap w rho = pureHeap ()
-
-initialLocHeap : LocHeap Unit [< P, P]
-initialLocHeap w rho =
-  let l1 = rho _ Here
-      l2 = rho _ (There Here)
-  in case w of
-    [<] => \_ => ((), [<])         -- No physical locations
-    [< P] => \x => ((), x)         -- One physical location
-    (w :< P) :< P => \x => ((), x) 
+-- The unit of the local state monad gave pureHeap, this is the right Kan
+-- extension of Inj -> Fin applied to it. Thus, this is the needed algebra.
+pureLocHeap : t -> LocHeap t w
+pureLocHeap t w rho = pureHeap t
 
 -- l1 := !l2
 readWrite : {f : Family} -> {auto fPsh : BoxCoalg f} -> (w : World) ->
@@ -857,25 +850,25 @@ Ex1 val =
 RunEx1 : (w' : World) -> ([< P, P] ~> w') -> StateIn w' -> StateIn w'
 RunEx1 w' rho ss =
   let interpret = (LocHeapAlgebra .fold) LocHeapCoalg idFam
-      res = interpret [< P, P] (Ex1 {f = LocHeap Unit} initialLocHeap)
+      res = interpret [< P, P] (Ex1 {f = LocHeap Unit} (pureLocHeap ()))
   in snd (runLocHeap w' rho res ss)
 
-Ex2 : LSFreeMonad (LocHeap Unit) [< P, P, P]
+Ex2 : {w : World} -> LSFreeMonad (LocHeap Unit) ([< P, P, P] ++  w)
 Ex2 =
   -- [< l1, l2, l3]
-  let l1 : [< P] ~> [< P] ++ [<P, P]
-      l1 = inl {w2 = [< P, P]}
-      l2 : [< P] ~> ([< P] ++ [< P]) ++ [< P]
-      l2 = inr {w1 = [< P], w2 = [< P, P]} . inl {w1 = [< P], w2 = [< P]}
-      l3 : [< P] ~> [< P, P] ++ [< P]
-      l3 = inr
+  let l1 : [< P] ~> ([< P] ++ [<P, P]) ++ w
+      l1 = inl . inl {w2 = [< P, P]}
+      l2 : [< P] ~> (([< P] ++ [< P]) ++ [< P]) ++ w
+      l2 = inl . inr {w1 = [< P], w2 = [< P, P]} . inl {w1 = [< P], w2 = [< P]}
+      l3 : [< P] ~> ([< P, P] ++ [< P]) ++ w
+      l3 = inl . inr
   in
   readWrite _ l2 l3 $
   readWrite _ l1 l2 $
-  pure _ pureLocHeap
+  pure _ (pureLocHeap ())
 
 RunEx2 : (w' : World) -> ([< P, P, P] ~> w') -> StateIn w' -> StateIn w'
 RunEx2 w' rho ss =
   let interpret = (LocHeapAlgebra .fold) LocHeapCoalg idFam
-      res = interpret [< P, P, P] Ex2
+      res = interpret [< P, P, P] (Ex2 {w = [<]})
   in snd (runLocHeap w' rho res ss)
