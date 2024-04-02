@@ -49,14 +49,15 @@ namespace All
   ForAll : SnocList a -> (0 _ : (a -> Type)) -> Type
   ForAll sx p = All p sx
 
-  ||| Tabulate a list into list of proofs given a way to construct proofs
+  ||| Tabulate a snoclist into a snoclist of proofs given a way to construct 
+  ||| proofs
   export
   tabulate : (sx : SnocList _) -> ((x : _) -> p x) -> All p sx
   tabulate [<] f = [<]
   tabulate (sx :< x) f = tabulate sx f :< f x
 
-  ||| Tabulate a list into list of proofs given a way to construct proofs which
-  ||| knows the element belongs to the list
+  ||| Tabulate a snoclist into a snoclist of proofs given a way to construct 
+  ||| proofs which knows the element belongs to the snoclist
   export
   tabulateElem :
     (sx : SnocList _) ->
