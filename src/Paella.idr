@@ -25,8 +25,6 @@ import public Paella.Presheaves.Product
 import public Paella.Presheaves.Representable
 import public Paella.Presheaves.Sum
 
-infix 3 !!, ::=, ?!
-
 ----------------------------------------------------
 -- Free monad for algebraic effects in presheaves --
 ----------------------------------------------------

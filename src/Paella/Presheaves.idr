@@ -32,7 +32,7 @@ namespace Coalgebra
     next : f -|> Box f
 
   ||| A `BoxCoalg` gives a functorial action
-  public export
+  export
   (.map) : {f : Family} -> BoxCoalg f -> PresheafOver f
   coalg.map {w1,w2} rho v = coalg.next w1 v w2 rho
 
@@ -43,11 +43,11 @@ namespace Coalgebra
   (=|>) {f, g} _ _ = f -|> g
 
 ||| A functorial action for a family induces a box coalgebra
-public export
+export
 {f : _} -> Cast (PresheafOver f) (BoxCoalg f) where
   cast psh = MkBoxCoalg $ \w, x, w', rho => psh rho x
 
 ||| A box coalgebra for a family induces a functorial action
-public export
+export
 {f : _} -> Cast (BoxCoalg f) (PresheafOver f) where
   cast coalg = coalg.map

@@ -2,6 +2,8 @@ module LocalState
 
 import Paella
 
+infix 3 !!, ::=, ?!
+
 public export
 ConsCell : A
 ConsCell = P

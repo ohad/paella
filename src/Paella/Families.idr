@@ -25,11 +25,11 @@ public export
 f.elem = (w : World) -> f w
 
 ||| Identity family transformation
-public export
+export
 id : {f : Family} -> f -|> f
 id w x = x
 
 ||| Composition of family transformations
-public export
+export
 (.) : {f, g, h : Family} -> (g -|> h) -> (f -|> g) -> (f -|> h)
 (beta . alpha) w = beta w . alpha w

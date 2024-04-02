@@ -18,7 +18,7 @@ FamSum : SnocList Family -> Family
 FamSum sf w = ForAny sf $ \f => f w
 
 ||| Presheaf structure of sum presheaf
-public export
+export
 BoxCoalgSum : {sf : SnocList Family} ->
   ForAll sf BoxCoalg -> BoxCoalg $ FamSum sf
 BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho =>
@@ -34,21 +34,21 @@ public export
 f ^ ws = FamProd (map (\w => w.shift f) ws)
 
 ||| Exponentiating a presheaf by a sum of representables gives a presheaf
-public export
+export
 BoxCoalgExpSum : {f : Family} -> {ws : SnocList World} ->
   BoxCoalg f -> BoxCoalg (f ^ ws)
 BoxCoalgExpSum coalg =
   BoxCoalgProd $ propertyToMap $ tabulate _ $ \w => w.shiftCoalg coalg
 
 ||| Exponentiating by a sum of representables has an evaluation
-public export
+export
 (.evalSum) : {ws : SnocList World} -> {f : Family} -> (coalg : BoxCoalg f) ->
   FamProd [< f ^ ws, FamSum (map Env ws)] -|> f
 coalg.evalSum w [< u, rho] =
   forget $ applyAtAny' (\_, x, rho' => coalg.map (cotuple rho' id) x) u rho
 
 ||| Exponentiating by a sum of representables has a currying
-public export
+export
 (.currySum) : {ws : SnocList World} -> {f : Family} -> (coalg : BoxCoalg f) ->
   (FamProd [< f, FamSum (map Env ws)] -|> g) -> (f -|> g ^ ws)
 coalg.currySum {ws = [<]} alpha w u = [<]
@@ -61,14 +61,14 @@ coalg.currySum {ws = ws' :< w'} alpha w u =
   )
 
 ||| Exponentiating by a sum of representables has an uncurrying
-public export
+export
 (.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (coalg : BoxCoalg g) ->
   (f -|> g ^ ws) -> (FamProd [< f, FamSum (map Env ws)] -|> g)
 coalg.uncurrySum beta w [< u, rho] = forget $
   applyAtAny' (\_, x, rho' => coalg.map (cotuple rho' id) x) (beta w u) rho
 
 ||| Post-composition for exponentiating by a sum of representables
-public export
+export
 expSumMap : {ws : SnocList World} -> {f, g : Family} ->
   (f -|> g) -> (f ^ ws -|> g ^ ws)
 expSumMap alpha w sx = mapPropertyWithRelevant' (\x, y => alpha (x ++ w) y) sx

@@ -22,7 +22,7 @@ data Var : A -> World -> Type where
   There : Var a w -> Var a (w :< b)
 
 ||| A variable in `w1 ++ w2` is either in `w1` or `w2`
-public export
+export
 split : {w2 : World} -> Var a (w1 ++ w2) -> Either (Var a w1) (Var a w2)
 split {w2 = [<]} x = Left x
 split {w2 = _ :< _} Here = Right Here
@@ -37,43 +37,43 @@ public export
 w1 ~> w2 = (a : A) -> Var a w1 -> Var a w2
 
 ||| Identity renaming
-public export
+export
 id : w ~> w
 id a x = x
 
 ||| Composition of renamings
-public export
+export
 (.) : w2 ~> w3 -> w1 ~> w2 -> w1 ~> w3
 (.) f g a x = f a (g a x)
 
 -- `(++)` is a coproduct in the category of worlds
 
 ||| Coproduct inclusion on the left
-public export
+export
 inl : {w2 : World} -> w1 ~> w1 ++ w2
 inl {w2 = [<]} a x = x
 inl {w2 = w2 :< b} a x = There (inl a x)
 
 ||| Coproduct inclusion on the right
-public export
+export
 inr : w2 ~> w1 ++ w2
 inr {w2 = .(w2 :< a)} a Here = Here
 inr {w2 = .(w2 :< b)} a (There x) = There (inr a x)
 
 ||| Coproduct cotupling
-public export
+export
 cotuple : {w2 : World} -> (w1 ~> w) -> (w2 ~> w) -> w1 ++ w2 ~> w
 cotuple {w2 = [<]} f g a x = f a x
 cotuple {w2 = w2 :< b} f g .(b) Here = g b Here
 cotuple {w2 = w2 :< b} f g a (There x) = cotuple f (\c, y => g c (There y)) a x
 
 ||| Symmetry of coproduct
-public export
+export
 swapRen : {w1, w2 : World} -> (w1 ++ w2) ~> (w2 ++ w1)
 swapRen = cotuple inr inl
 
 ||| Bifunctorial action of coproduct
-public export
+export
 bimap : {w1, w2, w1', w2' : World} ->
   (w1 ~> w1') -> (w2 ~> w2') -> (w1 ++ w2) ~> (w1' ++ w2')
 bimap f g a x = case split x of

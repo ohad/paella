@@ -20,14 +20,14 @@ FamProd sf w = ForAll sf $ \f => f w
 
 ||| When each family in a product of families is a presheaf, then so is the
 ||| product
-public export
+export
 BoxCoalgProd : {sf : SnocList Family} ->
   ForAll sf BoxCoalg -> BoxCoalg $ FamProd sf
 BoxCoalgProd scoalg = MkBoxCoalg $ \w, sx, w', rho =>
   zipPropertyWithRelevant (\f, coalg, x => coalg.map rho x) scoalg sx
 
 ||| Given a collection of maps out of a family `f`, we can tuple them together
-public export
+export
 tuple : {f : Family} -> {sg : SnocList Family} ->
   ForAll sg (\g => f -|> g) -> (f -|> FamProd sg)
 tuple sh w x = mapProperty (\h => h w x) sh
@@ -38,6 +38,6 @@ projection : {sf : SnocList Family} ->
 projection i w sx = indexAll (indexIsElem sf i) sx
 
 ||| Product of families is symmetric
-public export
+export
 swap : FamProd [< f, g] -|> FamProd [< g, f]
 swap w [< x, y] = [< y, x]
