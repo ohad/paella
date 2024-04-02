@@ -13,7 +13,7 @@ import Data.SnocList.Quantifiers
 namespace Any
   ||| Swapped version of `Any`
   public export
-  ForAny :  SnocList a -> (0 _ : (a -> Type)) -> Type
+  ForAny : SnocList a -> (0 _ : (a -> Type)) -> Type
   ForAny sx p = Any p sx
 
   ||| Inject an element satisfying the property into an `Any`

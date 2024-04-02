@@ -11,7 +11,7 @@ import Data.List.Quantifiers
 namespace Any
   ||| Swapped version of `Any`
   public export
-  ForAny :  List a -> (0 _ : (a -> Type)) -> Type
+  ForAny : List a -> (0 _ : (a -> Type)) -> Type
   ForAny xs p = Any p xs
 
 -- `All` related functions
@@ -19,7 +19,7 @@ namespace Any
 namespace All
   ||| Swapped version of `All`
   public export
-  ForAll :  List a -> (0 _ : (a -> Type)) -> Type
+  ForAll : List a -> (0 _ : (a -> Type)) -> Type
   ForAll xs p = All p xs
 
   ||| Tabulate a list into a list of proofs given a way to construct proofs
