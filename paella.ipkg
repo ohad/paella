@@ -16,7 +16,7 @@ authors = "Ohad Kammar and Jesse Sigal"
 depends = contrib
 
 -- modules to install
-modules = Paella
+modules = Paella, LocalState
 
 -- main file (i.e. file to load at REPL)
 -- main =
