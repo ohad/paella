@@ -4,6 +4,8 @@ import Data.List
 import Data.List.Elem
 import Data.List.Quantifiers
 
+%default total
+
 -- `Any` related functions
 
 namespace Any

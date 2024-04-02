@@ -5,6 +5,8 @@ import Data.SnocList.Elem
 
 import Data.Fin
 
+%default total
+
 ||| Find a particular element of a snoclist
 export
 index' : (sx : SnocList a) -> (Fin (length sx)) -> a

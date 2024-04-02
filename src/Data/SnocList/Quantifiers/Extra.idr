@@ -6,6 +6,8 @@ import Data.SnocList
 import Data.SnocList.Elem
 import Data.SnocList.Quantifiers
 
+%default total
+
 -- `Any` related functions
 
 namespace Any
