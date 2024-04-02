@@ -138,35 +138,6 @@ PresheafOver : Family -> Type
 PresheafOver f = {w1, w2 : World} -> (rho : w1 ~> w2) ->
   f w1 -> f w2
 
-namespace Algebra
-  ||| A presheaf structure given in coend form
-  public export
-  record Closure (f : Family) (w : World) where
-    constructor Close
-    ctx : World
-    weaken : ctx ~> w
-    val : f ctx
-
-  ||| The left-adjoint Fiore-transform monad (Diamond)
-  public export
-  D : Family -> Family
-  D = Closure  --(b : World ** (b ~> a, f b))
-
-  ||| Fiore transform: a DAlg (with laws) is equivalent to a presheaf
-  ||| (with laws)
-  public export
-  record DAlg (f : Family) where
-    constructor MkDAlg
-    eval : D f -|> f
-
-  public export
-  (.map) : {f : Family} -> DAlg f -> PresheafOver f
-  alg.map {w1, w2} rho v = alg.eval w2 (Close w1 rho v)
-
-  public export
-  (=|>) : {f,g : Family} -> (fAlg : DAlg f) -> (gAlg : DAlg g) -> Type
-  (=|>) {f,g} _ _ = f -|> g
-
 namespace Coalgebra
   ||| A presheaf structure given in end form
   ||| The right-adjoint Fiore-transform comonad (Box)
@@ -190,21 +161,12 @@ namespace Coalgebra
   (=|>) {f,g} _ _ = f -|> g
 
 public export
-{f : _} -> Cast (DAlg f) (BoxCoalg f) where
-  cast alg = MkBoxCoalg $ \w, x, w', rho => alg.map rho x
-
-public export
-{f : _} -> Cast (BoxCoalg f) (DAlg f) where
-  cast coalg = MkDAlg $ \w, closure => coalg.map closure.weaken closure.val
-
-public export
 {f : _} -> Cast (PresheafOver f) (BoxCoalg f) where
   cast psh = MkBoxCoalg $ \w, x, w', rho => psh rho x
 
 public export
-{f : _} -> Cast (PresheafOver f) (DAlg f) where
-  cast psh = MkDAlg $ \w, closure =>
-    psh closure.weaken closure.val
+{f : _} -> Cast (BoxCoalg f) (PresheafOver f) where
+  cast coalg = coalg.map
 
 public export
 ||| Fiore-transform of presheaf exponentiation: f^(Yoneda w1).
@@ -216,14 +178,10 @@ public export
 w1.shiftLeft f w2 = f (w2 ++ w1)
 
 public export
--- (f.shift) is actually a presheaf
-(.shiftAlg) : (w1 : World) -> {f : Family} -> DAlg f -> DAlg (w1.shift f)
-w1.shiftAlg {f} alg = MkDAlg $ \w, (Close ctx rho v) =>
-  alg.map (Paella.bimap idRen rho) v
-
-public export
-(.shiftCoalg) : (w1 : World) -> {f : Family} -> BoxCoalg f -> BoxCoalg (w1.shift f)
-w1.shiftCoalg {f} boxCoalg = cast (w1.shiftAlg $ cast {to = DAlg f} boxCoalg)
+(.shiftCoalg) : {f : Family} ->
+  (w1 : World) -> BoxCoalg f -> BoxCoalg (w1.shift f)
+w1.shiftCoalg coalg = MkBoxCoalg $ \w, x, w', rho =>
+  coalg.map (bimap {w1 = w1} idRen rho) x
 
 public export
 ||| The product family is given pointwise
@@ -245,10 +203,10 @@ tuple : {f : Family} -> {sg : SnocList Family} ->
   f -|> FamProd sg
 tuple hs w x = mapProperty (\h => h w x) hs
 
-{- TODO: For completeness
-projection : {sf : SnocList Family} -> (i : Fin $ length sf) ->
-  FamProd sf -|> (sf !! i)
--}
+-- {- TODO: For completeness
+-- projection : {sf : SnocList Family} -> (i : Fin $ length sf) ->
+--   FamProd sf -|> (sf !! i)
+-- -}
 
 public export
 Env : World -> Family
@@ -260,22 +218,22 @@ swap w [< x , y] = [< y , x]
 
 public export
 -- (f.shift) is actually an exponential
-(.eval) : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
+(.eval) : {w1 : World} -> {f : Family} -> (fPsh : BoxCoalg f) ->
        FamProd [< w1.shift f, Env w1] -|> f
 fPsh.eval w [< u, rho] = fPsh.map (cotuple rho idRen) u
 
 public export
-(.curry) : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
+(.curry) : {w1 : World} -> {f : Family} -> (fPsh : BoxCoalg f) ->
   (FamProd [< f, Env w1] -|> g) -> f -|> w1.shift g
 fPsh.curry alpha w u = alpha (w1 ++ w) [< fPsh.map inr u, inl]
 
 public export
-(.curry') : {w1 : World} -> {f : Family} -> (fPsh : DAlg f) ->
+(.curry') : {w1 : World} -> {f : Family} -> (fPsh : BoxCoalg f) ->
   (FamProd [< Env w1, f] -|> g) -> f -|> w1.shift g
 fPsh.curry' alpha w u = alpha (w1 ++ w) [< inl, fPsh.map inr u]
 
 public export
-(.uncurry) : {w1 : World} -> {g : Family} -> (gPsh : DAlg g) ->
+(.uncurry) : {w1 : World} -> {g : Family} -> (gPsh : BoxCoalg g) ->
   (f -|> w1.shift g) -> (FamProd [< f, Env w1] -|> g)
 gPsh.uncurry beta w [< u, rho] = gPsh.map (cotuple rho idRen) (beta w u)
 
@@ -329,7 +287,7 @@ public export
    (w0.shift g) -|> ((Env w0) -% g)
 psh.shiftFromRepr =
   let coalg : BoxCoalg g = cast psh
-      algeb = (cast {to = DAlg g} psh).eval
+      algeb = coalg.eval
   in (w0.shiftCoalg coalg).map.abst algeb
 
 public export
@@ -374,7 +332,7 @@ BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho => applyAtAny (\f, coalg => coa
 
 public export
 -- (f ^ ws) is actually an exponential
-(.evalSum) : {ws : SnocList World} -> {f : Family} -> (fPsh : DAlg f) ->
+(.evalSum) : {ws : SnocList World} -> {f : Family} -> (fPsh : BoxCoalg f) ->
        FamProd [< f ^ ws, FamSum (map Env ws)] -|> f
 fPsh.evalSum w [< u, rho] =
   forget $ applyAtAny'
@@ -383,7 +341,7 @@ fPsh.evalSum w [< u, rho] =
     rho
 
 public export
-(.currySum) : {ws : SnocList World} -> {f : Family} -> (fPsh : DAlg f) ->
+(.currySum) : {ws : SnocList World} -> {f : Family} -> (fPsh : BoxCoalg f) ->
   (FamProd [< f, FamSum (map Env ws)] -|> g) -> f -|> g ^ ws
 fPsh.currySum {ws = [<]} alpha w u = [<]
 fPsh.currySum {ws = ws' :< w'} alpha w u =
@@ -391,7 +349,7 @@ fPsh.currySum {ws = ws' :< w'} alpha w u =
   (\w1, pos => alpha (w1 ++ w) [< fPsh.map inr u, propertyToMap {sx = ws' :< w'} {f = Env} (inject pos inl)]))
 
 public export
-(.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (gPsh : DAlg g) ->
+(.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (gPsh : BoxCoalg g) ->
   (f -|> g ^ ws) -> (FamProd [< f, FamSum (map Env ws)] -|> g)
 gPsh.uncurrySum beta w [< u, rho] =
   forget $ applyAtAny' (\w1, x, rho' => gPsh.map (cotuple rho' idRen) x) (beta w u) rho
