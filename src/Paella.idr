@@ -136,7 +136,7 @@ idFam w x = x
 
 ||| Composition of family transformations
 public export
-(.:.) : {f,g,h : Family} -> (g -|> h) -> (f -|> g) -> (f -|> h)
+(.:.) : {f, g, h : Family} -> (g -|> h) -> (f -|> g) -> (f -|> h)
 (beta .:. alpha) w = beta w . alpha w
 
 --------------------------------------------
@@ -175,8 +175,8 @@ namespace Coalgebra
   ||| A coalgebra map, if we had laws this would be the same as a natural
   ||| transformation
   public export
-  (=|>) : {f,g : Family} -> (fAlg : BoxCoalg f) -> (gAlg : BoxCoalg g) -> Type
-  (=|>) {f,g} _ _ = f -|> g
+  (=|>) : {f, g : Family} -> (fAlg : BoxCoalg f) -> (gAlg : BoxCoalg g) -> Type
+  (=|>) {f, g} _ _ = f -|> g
 
 ||| A functorial action for a family induces a box coalgebra
 public export
@@ -188,36 +188,28 @@ public export
 {f : _} -> Cast (BoxCoalg f) (PresheafOver f) where
   cast coalg = coalg.map
 
+-- Basic presheaves
+
+||| The constant family is a presheaf
+public export
+BoxCoalgConst : {t : Type} -> BoxCoalg (const t)
+BoxCoalgConst = MkBoxCoalg $ \_, x, _, _ => x
+
 ||| The family of variables of type `a` is a presheaf
 public export
 BoxCoalgVar : {a : A} -> BoxCoalg (Var a)
 BoxCoalgVar = MkBoxCoalg $ \w, pos, w', rho => rho a pos
 
--- Exponentiating by representables, transformed
+-- Representable functors
 
-||| Fiore-transform of presheaf exponentiation of `f` by Yoneda of `w1`
+||| The representable functor at `w`, so a map `Env w -|> f` is morally an
+||| element of `f w` and thus `f` in environment `w`
 public export
-(.shift) : World -> Family -> Family
-w1.shift f w2 = f (w1 ++ w2)
+Env : World -> Family
+Env w = (w ~>)
 
-||| Fiore-transform of presheaf exponentiation of `f` by Yoneda of `w1`, swapped
-public export
-(.shiftLeft) : World -> Family -> Family
-w1.shiftLeft f w2 = f (w2 ++ w1)
-
-||| Exponentiating a presheaf by a representable gives a presheaf
-public export
-(.shiftCoalg) : {f : Family} ->
-  (w1 : World) -> BoxCoalg f -> BoxCoalg (w1.shift f)
-w1.shiftCoalg coalg = MkBoxCoalg $ \w, x, w', rho =>
-  coalg.map (bimap {w1 = w1} idRen rho) x
-
-||| Exponentiating a presheaf by a representable gives a presheaf, swapped
-public export
-(.shiftLeftCoalg) : {f : Family} ->
-  (w1 : World) -> BoxCoalg f -> BoxCoalg (w1.shiftLeft f)
-w1.shiftLeftCoalg coalg = MkBoxCoalg $ \w, x, w', rho =>
-  coalg.map (bimap {w2 = w1} rho idRen) x
+BoxCoalgEnv : {w1 : World} -> BoxCoalg (Env w1)
+BoxCoalgEnv = MkBoxCoalg $ \w, rho, w', rho' => rho' . rho
 
 -- Product structure
 
@@ -250,83 +242,180 @@ public export
 swap : FamProd [< f, g] -|> FamProd [< g, f]
 swap w [< x, y] = [< y, x]
 
+-- Coproduct structure
+
+||| When each family in a sum of families is a presheaf, then so is the sum
 public export
-Env : World -> Family
-Env w = (w ~>)
+FamSum : SnocList Family -> Family
+FamSum sf w = ForAny sf $ \f => f w
+
+||| Presheaf structure of sum presheaf
+public export
+BoxCoalgSum : {sf : SnocList Family} ->
+  ForAll sf BoxCoalg -> BoxCoalg $ FamSum sf
+BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho =>
+  applyAtAny (\f, coalg => coalg.map rho) salg sx
+
+-- Exponentiating by representables, transformed
+
+||| Fiore-transform of presheaf exponentiation of `f` by Yoneda of `w1`
+public export
+(.shift) : World -> Family -> Family
+w1.shift f w2 = f (w1 ++ w2)
+
+||| Fiore-transform of presheaf exponentiation of `f` by Yoneda of `w1`, swapped
+public export
+(.shiftLeft) : World -> Family -> Family
+w1.shiftLeft f w2 = f (w2 ++ w1)
+
+||| Exponentiating a presheaf by a representable gives a presheaf
+public export
+(.shiftCoalg) : {f : Family} ->
+  (w1 : World) -> BoxCoalg f -> BoxCoalg (w1.shift f)
+w1.shiftCoalg coalg = MkBoxCoalg $ \w, x, w', rho =>
+  coalg.map (bimap {w1 = w1} idRen rho) x
+
+||| Exponentiating a presheaf by a representable gives a presheaf, swapped
+public export
+(.shiftLeftCoalg) : {f : Family} ->
+  (w1 : World) -> BoxCoalg f -> BoxCoalg (w1.shiftLeft f)
+w1.shiftLeftCoalg coalg = MkBoxCoalg $ \w, x, w', rho =>
+  coalg.map (bimap {w2 = w1} rho idRen) x
+
+||| `w1.shift f` is an exponential of `f` by `Env w1`, thus has an evaluation
+public export
+(.evalRep) : {w1 : World} -> {f : Family} -> (coalg : BoxCoalg f) ->
+  FamProd [< w1.shift f, Env w1] -|> f
+coalg.evalRep w [< u, rho] = coalg.map (cotuple rho idRen) u
+
+||| `w1.shift g` is an exponential of `g` by `Env w1`, thus has an currying
+public export
+(.curryRep) : {w1 : World} -> {f : Family} -> (coalg : BoxCoalg f) ->
+  (FamProd [< f, Env w1] -|> g) -> (f -|> w1.shift g)
+coalg.curryRep alpha w u = alpha (w1 ++ w) [< coalg.map inr u, inl]
 
 public export
--- (f.shift) is actually an exponential
-(.eval) : {w1 : World} -> {f : Family} -> (fPsh : BoxCoalg f) ->
-       FamProd [< w1.shift f, Env w1] -|> f
-fPsh.eval w [< u, rho] = fPsh.map (cotuple rho idRen) u
+(.curryRep') : {w1 : World} -> {f, g : Family} -> (coalg : BoxCoalg f) ->
+  (FamProd [< Env w1, f] -|> g) -> (f -|> w1.shift g)
+coalg.curryRep' alpha = coalg.curryRep (alpha .:. swap)
 
+||| `w1.shift g` is an exponential of `g` by `Env w1`, thus has an uncurrying
 public export
-(.curry) : {w1 : World} -> {f : Family} -> (fPsh : BoxCoalg f) ->
-  (FamProd [< f, Env w1] -|> g) -> f -|> w1.shift g
-fPsh.curry alpha w u = alpha (w1 ++ w) [< fPsh.map inr u, inl]
-
-public export
-(.curry') : {w1 : World} -> {f : Family} -> (fPsh : BoxCoalg f) ->
-  (FamProd [< Env w1, f] -|> g) -> f -|> w1.shift g
-fPsh.curry' alpha w u = alpha (w1 ++ w) [< inl, fPsh.map inr u]
-
-public export
-(.uncurry) : {w1 : World} -> {g : Family} -> (gPsh : BoxCoalg g) ->
+(.uncurryRep) : {w1 : World} -> {g : Family} -> (coalg : BoxCoalg g) ->
   (f -|> w1.shift g) -> (FamProd [< f, Env w1] -|> g)
-gPsh.uncurry beta w [< u, rho] = gPsh.map (cotuple rho idRen) (beta w u)
+coalg.uncurryRep beta w [< u, rho] = coalg.map (cotuple rho idRen) (beta w u)
+
+-- Exponentiating by a sum of representables, as a product
+
+infixl 7 ^
+
+||| The exponentiation of `f` by the sum of representables of `ws`
+public export
+(^) : Family -> SnocList World -> Family
+f ^ ws = FamProd (map (\w => w.shift f) ws)
+
+||| Exponentiating a presheaf by a sum of representables gives a presheaf
+public export
+BoxCoalgExpSum : {f : Family} -> {ws : SnocList World} ->
+  BoxCoalg f -> BoxCoalg (f ^ ws)
+BoxCoalgExpSum coalg =
+  BoxCoalgProd $ propertyToMap $ tabulate _ $ \w => w.shiftCoalg coalg
+
+||| Exponentiating by a sum of representables has an evaluation
+public export
+(.evalSum) : {ws : SnocList World} -> {f : Family} -> (coalg : BoxCoalg f) ->
+  FamProd [< f ^ ws, FamSum (map Env ws)] -|> f
+coalg.evalSum w [< u, rho] =
+  forget $ applyAtAny' (\_, x, rho' => coalg.map (cotuple rho' idRen) x) u rho
+
+||| Exponentiating by a sum of representables has a currying
+public export
+(.currySum) : {ws : SnocList World} -> {f : Family} -> (coalg : BoxCoalg f) ->
+  (FamProd [< f, FamSum (map Env ws)] -|> g) -> (f -|> g ^ ws)
+coalg.currySum {ws = [<]} alpha w u = [<]
+coalg.currySum {ws = ws' :< w'} alpha w u =
+  propertyToMap $ tabulateElem (ws' :< w') (\w1, pos =>
+    alpha (w1 ++ w)
+      [< coalg.map inr u
+      ,  propertyToMap {sx = ws' :< w'} {f = Env} (inject pos inl)
+      ]
+  )
+
+||| Exponentiating by a sum of representables has an uncurrying
+public export
+(.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (coalg : BoxCoalg g) ->
+  (f -|> g ^ ws) -> (FamProd [< f, FamSum (map Env ws)] -|> g)
+coalg.uncurrySum beta w [< u, rho] = forget $
+  applyAtAny' (\_, x, rho' => coalg.map (cotuple rho' idRen) x) (beta w u) rho
+
+||| Post-composition for exponentiating by a sum of representables
+public export
+expSumMap : {ws : SnocList World} -> {f, g : Family} ->
+  (f -|> g) -> (f ^ ws -|> g ^ ws)
+expSumMap alpha w sx = mapPropertyWithRelevant' (\x, y => alpha (x ++ w) y) sx
 
 -- General exponential of presheaves
+
 infixr 2 -%
 
+||| Exponential of presheaves
 public export
 (-%) : (f, g : Family) -> Family
 (f -% g) w = (FamProd [< Env w, f]) -|> g
 
+||| Evaluation for exponential
 public export
-eval : FamProd [< f -% g , f] -|> g
-eval w [< alpha , x] = alpha w [< idRen, x]
+eval : FamProd [< f -% g, f] -|> g
+eval w [< alpha, x] = alpha w [< idRen, x]
 
+||| Currying for exponential
 public export
-(.abst) : {gamma : Family} ->
-  (PresheafOver gamma) -> (FamProd [< gamma , f ] -|> g) ->
-  gamma -|> (f -% g)
-psh.abst beta w env w2 [< rho , x] =
-  beta w2 [< psh rho env , x]
+(.curry) : {h : Family} -> (coalg : BoxCoalg h) ->
+  (FamProd [< h, f] -|> g) -> (h -|> (f -% g))
+coalg.curry beta w env w' [< rho, x] = beta w' [< coalg.map rho env, x]
 
+||| Uncurrying for exponential
 public export
-uncur : {gamma : Family} ->
-  gamma -|> (f -% g) ->
-  FamProd[< gamma, f] -|> g
-uncur h w [< env, x] = h w env w [< idRen, x]
+uncurry : {h : Family} -> (h -|> (f -% g)) -> (FamProd [< h, f] -|> g)
+uncurry h w [< env, x] = h w env w [< idRen, x]
 
--- Can derive from previous but can cut out hassle
+||| The exponential of two presheaves is a presheaf
 public export
-abst :
-  (f -|> g) ->
-  (f -% g).elem
-abst f w w' [< rho , x] = f w' x
-
-public export
-ExpCoalg : BoxCoalg (f -% g)
-ExpCoalg = MkBoxCoalg $ \w, alpha, w', rho, w'', [< rho' , x] =>
+BoxCoalgExp : BoxCoalg (f -% g)
+BoxCoalgExp = MkBoxCoalg $ \w, alpha, w', rho, w'', [< rho', x] =>
   alpha w'' [< rho' . rho, x]
 
+||| Post-composition for exponentiating
 public export
-(.shiftIntoRepr) : {w0 : World} -> {g : Family} ->
-  (PresheafOver g) ->
-  ((Env w0) -% g) -|> (w0.shift g)
-psh.shiftIntoRepr =
-  (cast {from = BoxCoalg (Env w0 -% g)} $ ExpCoalg).curry
-    {g, f = (Env w0) -% g} $ eval {f = Env w0, g = g}
+expMap : {f, g, h : Family} ->
+  (f -|> g) -> (h -% f -|> h -% g)
+expMap {f, g, h} alpha = BoxCoalgExp .curry (alpha .:. eval)
 
+||| Swap the arguments of a curried function
+-- instead of mess around with point-free style, switch to pointed style
 public export
-(.shiftFromRepr) : {w0 : World} -> {g : Family} ->
-  (PresheafOver g) ->
-   (w0.shift g) -|> ((Env w0) -% g)
-psh.shiftFromRepr =
-  let coalg : BoxCoalg g = cast psh
-      algeb = coalg.eval
-  in (w0.shiftCoalg coalg).map.abst algeb
+(.swapExps) : {f, g, h : Family} -> (coalg : BoxCoalg g) ->
+  f -% (g -% h) -|> g -% (f -% h)
+coalg.swapExps =
+  (BoxCoalgExp).curry $ (BoxCoalgProd [< BoxCoalgExp , coalg]).curry $
+    \w, [<[< a, y], x] => eval w [< eval w [< a, x], y]
+
+||| Turn a real exponential by a representable into the special case
+public export
+shiftIntoRepr : {w1 : World} -> {g : Family} ->
+  (Env w1 -% g) -|> (w1.shift g)
+shiftIntoRepr = BoxCoalgExp .curryRep eval
+
+||| Turn the special case of exponentiating by a representable into a real
+||| exponential
+public export
+(.shiftFromRepr) : {w1 : World} -> {g : Family} -> (coalg : BoxCoalg g) ->
+   (w1.shift g) -|> (Env w1 -% g)
+coalg.shiftFromRepr = (w1.shiftCoalg coalg).curry coalg.evalRep
+
+----------------------------------------------------
+-- Free monad for algebraic effects in presheavss --
+----------------------------------------------------
 
 public export
 record OpSig where
@@ -337,68 +426,6 @@ record OpSig where
 public export
 Signature : Type
 Signature = List OpSig
-
-infixl 7 ^
-
-public export
-||| The exponentiation of f by the sum of representables coprod_{w in ws} y(w)
-(^) : Family -> SnocList World -> Family
-f ^ ws = FamProd (map (\w => w.shift f) ws)
-
-public export
-ArityExponential : {f : Family} -> (BoxCoalg f) ->
-  {ws : SnocList World} -> BoxCoalg (f ^ ws)
-ArityExponential {f, ws} boxCoalg
-  = BoxCoalgProd $ propertyToMap $ tabulate _
-                 $ \w => w.shiftCoalg boxCoalg
-
-public export
-||| The sum family is given pointwise
-FamSum : SnocList Family -> Family
-FamSum sf w = ForAny sf $ \f => f w
-
-public export
-||| Presheaf structure of sum presheaf
-BoxCoalgSum : {sf : SnocList Family} -> ForAll sf (\f => BoxCoalg f) ->
-  BoxCoalg $ FamSum sf
-BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho => applyAtAny (\f, coalg => coalg.map rho) salg sx
-
-public export
--- (f ^ ws) is actually an exponential
-(.evalSum) : {ws : SnocList World} -> {f : Family} -> (fPsh : BoxCoalg f) ->
-       FamProd [< f ^ ws, FamSum (map Env ws)] -|> f
-fPsh.evalSum w [< u, rho] =
-  forget $ applyAtAny'
-    (\w1,x,rho => fPsh.map (cotuple rho idRen) x)
-    u
-    rho
-
-public export
-(.currySum) : {ws : SnocList World} -> {f : Family} -> (fPsh : BoxCoalg f) ->
-  (FamProd [< f, FamSum (map Env ws)] -|> g) -> f -|> g ^ ws
-fPsh.currySum {ws = [<]} alpha w u = [<]
-fPsh.currySum {ws = ws' :< w'} alpha w u =
-  propertyToMap (tabulateElem (ws' :< w')
-  (\w1, pos => alpha (w1 ++ w) [< fPsh.map inr u, propertyToMap {sx = ws' :< w'} {f = Env} (inject pos inl)]))
-
-public export
-(.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (gPsh : BoxCoalg g) ->
-  (f -|> g ^ ws) -> (FamProd [< f, FamSum (map Env ws)] -|> g)
-gPsh.uncurrySum beta w [< u, rho] =
-  forget $ applyAtAny' (\w1, x, rho' => gPsh.map (cotuple rho' idRen) x) (beta w u) rho
-
-public export
-expMapSumRep : {ws : SnocList World} ->
-  {f,g : Family} ->
-  (f -|> g) -> (f ^ ws) -|> (g ^ ws)
-expMapSumRep alpha w sx =
-  mapPropertyWithRelevant' (\x, y => alpha (x ++ w) y) sx
-
-public export
-expMap :
-  {f,g,e : Family} ->
-  (f -|> g) -> (e -% f) -|> (e -% g)
-expMap {f,g,e} alpha = ExpCoalg .map.abst (alpha .:. eval)
 
 public export
 data (.Free) : Signature -> Family -> Family where
@@ -413,8 +440,8 @@ data (.Free) : Signature -> Family -> Family where
 public export
 record FunctorialOpSig (op : OpSig) where
   constructor MkFunOpSig
-  Args  : PresheafOver op.Args
-  Arity : PresheafOver op.Arity
+  Args  : BoxCoalg op.Args
+  Arity : BoxCoalg op.Arity
 
 public export
 FunctorialSignature : Signature -> Type
@@ -429,8 +456,8 @@ BoxCoalgFree sigFunc coalg = MkBoxCoalg $ \w, term, w', rho =>
     Return w1 var => Return w' (coalg.map rho var)
     Op pos w [< arg , cont] =>
       Op pos w'
-        [< (indexAll pos sigFunc).Args rho arg
-        , ExpCoalg .map rho cont]
+        [< (indexAll pos sigFunc).Args.map rho arg
+        , BoxCoalgExp .map rho cont]
 
 -- Huh. Didn't need the Arity's functorial action here
 
@@ -445,38 +472,24 @@ MkAlgebraOver : {sig : Signature} -> {f : Family} ->
     (FamProd [< op.Arity -% f , op.Args] -|> f))
   -> sig.AlgebraOver f
 MkAlgebraOver = mapPropertyWithRelevant
-  (\x => ExpCoalg .map.abst)
-
-
--- Powers
-
-public export
-swapExps : {a,b,f : Family} ->
-  (PresheafOver b) =>
-  a -% (b -% f) -|> b -% (a -% f)
-swapExps @{bPsh} =
-  (ExpCoalg).map.abst
-    ((BoxCoalgProd [< ExpCoalg , cast {from = PresheafOver b} bPsh]).map.abst $
-  -- instead of mess around with point-free style, switch to pointed style
-  \w, [<[< h, x], y] => eval w [< eval w [< h, y], x]
-  )
+  (\x => BoxCoalgExp .curry)
 
 public export
 liftOp : {gamma, arity, args, f : Family} ->
-  (PresheafOver arity) => (PresheafOver args) => (PresheafOver gamma) =>
+  (BoxCoalg args) => (BoxCoalg gamma) =>
   (op : arity -% f -|> args -% f) ->
   (arity -% (gamma -% f) -|> args -% (gamma -% f))
-liftOp @{arityPsh} @{argsPsh} @{gammaPsh} op =
-  swapExps @{argsPsh} .:. (expMap op) .:. swapExps @{gammaPsh}
+liftOp @{argsPsh} @{gammaPsh} op =
+  argsPsh.swapExps .:. (expMap op) .:. gammaPsh.swapExps
 
 public export
 liftAlg : {sig : Signature} -> {gamma, f : Family} ->
   (sigFuncs : FunctorialSignature sig) =>
-  (gammaPsh : PresheafOver gamma) =>
+  (gammaPsh : BoxCoalg gamma) =>
   sig.AlgebraOver f ->
   sig.AlgebraOver (gamma -% f)
 liftAlg @{sigFuncs} alg = zipPropertyWithRelevant (\optor,sigFunc, op =>
-    liftOp @{sigFunc.Arity} @{sigFunc.Args} @{gammaPsh} op)
+    liftOp @{sigFunc.Args} @{gammaPsh} op)
   sigFuncs alg
 
 public export
@@ -485,7 +498,7 @@ curryOp : (sig : Signature) ->
   (op : OpSig) -> op `Elem` sig ->
   op.Arity -% (sig.Free f) -|> (op.Args) -% (sig.Free f)
 curryOp sig f coalg op pos =
-  (ExpCoalg .map).abst (Op pos .:. swap)
+  BoxCoalgExp .curry (Op pos .:. swap)
 
 public export
 TermAlgebra : {sig : Signature} ->
@@ -506,7 +519,7 @@ a.fold env w (Return w x  ) = env w x
 a.fold env w (Op {op} pos .(w) [< arg, k]) =
   let fold = a.fold env
       g_op = indexAll pos a w
-      folded = g_op (expMap {e = op.Arity} fold w k)
+      folded = g_op (expMap {h = op.Arity} fold w k)
   in eval w [< folded, arg]
 
 public export
@@ -518,13 +531,13 @@ public export
 (.extendStrength) :  {sig : Signature} ->
   (sigFuncs : FunctorialSignature sig) =>
   {gamma, f,g : Family} ->
-  {fPsh : PresheafOver f} ->
-  {gammaPsh : PresheafOver gamma} ->
+  {fCoalg : BoxCoalg f} ->
+  {gammaPsh : BoxCoalg gamma} ->
   BoxCoalg g ->
   (FamProd [< gamma, f] -|> sig.Free g) ->
   (FamProd [< gamma, sig.Free f] -|> sig.Free g)
 gPsh.extendStrength alpha  =
-  (uncur $ (liftAlg @{sigFuncs} @{gammaPsh} (TermAlgebra g gPsh)).fold (fPsh.abst $ alpha .:. swap)) .:. swap
+  (uncurry $ (liftAlg @{sigFuncs} @{gammaPsh} (TermAlgebra g gPsh)).fold (fCoalg.curry $ alpha .:. swap)) .:. swap
 
 infixr 1 >>==
 
@@ -540,9 +553,9 @@ public export
   (FamProd (gammas :< f) -|> sig.Free g) ->
   FamProd gammas -|> sig.Free g
 (>>==) xs k =
-  ((coalg.extendStrength {sigFuncs} {fPsh = fPsh.map}
+  ((coalg.extendStrength {sigFuncs} {fCoalg = fPsh}
                    {gammaPsh =
-                   (BoxCoalgProd $ mapPropertyWithRelevant (\_,psh => psh) gammaPsh).map})
+                   (BoxCoalgProd $ mapPropertyWithRelevant (\_,psh => psh) gammaPsh)})
                 (\w,[< env, x] => k w (env :< x)))
       .:. tuple [<\_ => id,  xs]
 

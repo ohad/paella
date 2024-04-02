@@ -66,25 +66,32 @@ public export
 LSSigFunc : FunctorialSignature LSSig
 LSSigFunc =
   [ -- read
-    MkFunOpSig { Arity = TypeOfFunctoriality ConsCell
-               , Args = BoxCoalgVar .map
+    MkFunOpSig { Arity = BoxCoalgProd [< BoxCoalgConst, BoxCoalgVar]
+               , Args = BoxCoalgVar
                }
   , -- write
-    MkFunOpSig { Arity = const $ const ()
+    MkFunOpSig { Arity = BoxCoalgConst
                , Args = (BoxCoalgProd [< BoxCoalgVar,
                                          cast {from = PresheafOver (TypeOf ConsCell)}
-                                         (TypeOfFunctoriality ConsCell)]).map
+                                         (TypeOfFunctoriality ConsCell)])
                }
   , -- new
-    MkFunOpSig { Arity = BoxCoalgVar .map
+    MkFunOpSig { Arity = BoxCoalgVar
                , Args = ([< ConsCell].shiftCoalg {f = (TypeOf ConsCell)} $
                      cast {from = PresheafOver (TypeOf ConsCell)}
-                     (TypeOfFunctoriality ConsCell)).map
+                     (TypeOfFunctoriality ConsCell))
                }
   ]
 
 -- Probably better to define the generic operations generically
 -- and instantiate to these
+
+-- Can derive from previous but can cut out hassle
+public export
+abst :
+  (f -|> g) ->
+  (f -% g).elem
+abst f w w' [< rho , x] = f w' x
 
 public export
 read : Var ConsCell -|> LSSig .Free (TypeOf ConsCell)
@@ -239,12 +246,12 @@ LSHandlerCarrier f = Heap -% Private f
 public export
 LSHandlerPsh : (coalg : BoxCoalg f) ->
   BoxCoalg $ LSHandlerCarrier f
-LSHandlerPsh coalg = ExpCoalg
+LSHandlerPsh coalg = BoxCoalgExp
 
 public export
 val : {f : Family} -> {coalg : BoxCoalg f} ->
   coalg =|> (LSHandlerPsh coalg)
-val = coalg.map.abst $ \w, [< v, heap] =>
+val = coalg.curry $ \w, [< v, heap] =>
   Private.pure {f} w v
 
 public export
