@@ -11,7 +11,8 @@ public export
 Family : Type
 Family = World -> Type
 
-infixr 1 -|>, =|>, .:.
+infixr 1 -|>
+infixr 9 .
 
 ||| Family transformation, i.e. a morphism of families
 public export
@@ -25,10 +26,10 @@ f.elem = (w : World) -> f w
 
 ||| Identity family transformation
 public export
-idFam : {f : Family} -> f -|> f
-idFam w x = x
+id : {f : Family} -> f -|> f
+id w x = x
 
 ||| Composition of family transformations
 public export
-(.:.) : {f, g, h : Family} -> (g -|> h) -> (f -|> g) -> (f -|> h)
-(beta .:. alpha) w = beta w . alpha w
+(.) : {f, g, h : Family} -> (g -|> h) -> (f -|> g) -> (f -|> h)
+(beta . alpha) w = beta w . alpha w

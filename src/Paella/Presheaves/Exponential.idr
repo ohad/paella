@@ -22,7 +22,7 @@ public export
 ||| Evaluation for exponential
 public export
 eval : FamProd [< f -% g, f] -|> g
-eval w [< alpha, x] = alpha w [< idRen, x]
+eval w [< alpha, x] = alpha w [< id, x]
 
 ||| Currying for exponential
 public export
@@ -33,7 +33,7 @@ coalg.curry beta w env w' [< rho, x] = beta w' [< coalg.map rho env, x]
 ||| Uncurrying for exponential
 public export
 uncurry : {h : Family} -> (h -|> (f -% g)) -> (FamProd [< h, f] -|> g)
-uncurry h w [< env, x] = h w env w [< idRen, x]
+uncurry h w [< env, x] = h w env w [< id, x]
 
 ||| The exponential of two presheaves is a presheaf
 public export
@@ -45,7 +45,7 @@ BoxCoalgExp = MkBoxCoalg $ \w, alpha, w', rho, w'', [< rho', x] =>
 public export
 expMap : {f, g, h : Family} ->
   (f -|> g) -> (h -% f -|> h -% g)
-expMap {f, g, h} alpha = BoxCoalgExp .curry (alpha .:. eval)
+expMap {f, g, h} alpha = BoxCoalgExp .curry (alpha . eval)
 
 ||| Swap the arguments of a curried function
 -- instead of mess around with point-free style, switch to pointed style

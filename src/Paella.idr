@@ -28,7 +28,7 @@ import public Paella.Presheaves.Sum
 infix 3 !!, ::=, ?!
 
 ----------------------------------------------------
--- Free monad for algebraic effects in presheavss --
+-- Free monad for algebraic effects in presheaves --
 ----------------------------------------------------
 
 public export
@@ -94,7 +94,7 @@ liftOp : {gamma, arity, args, f : Family} ->
   (op : arity -% f -|> args -% f) ->
   (arity -% (gamma -% f) -|> args -% (gamma -% f))
 liftOp @{argsPsh} @{gammaPsh} op =
-  argsPsh.swapExps .:. (expMap op) .:. gammaPsh.swapExps
+  argsPsh.swapExps . (expMap op) . gammaPsh.swapExps
 
 public export
 liftAlg : {sig : Signature} -> {gamma, f : Family} ->
@@ -112,7 +112,7 @@ curryOp : (sig : Signature) ->
   (op : OpSig) -> op `Elem` sig ->
   op.Arity -% (sig.Free f) -|> (op.Args) -% (sig.Free f)
 curryOp sig f coalg op pos =
-  BoxCoalgExp .curry (Op pos .:. swap)
+  BoxCoalgExp .curry (Op pos . swap)
 
 public export
 TermAlgebra : {sig : Signature} ->
@@ -151,7 +151,7 @@ public export
   (FamProd [< gamma, f] -|> sig.Free g) ->
   (FamProd [< gamma, sig.Free f] -|> sig.Free g)
 gPsh.extendStrength alpha  =
-  (uncurry $ (liftAlg @{sigFuncs} @{gammaPsh} (TermAlgebra g gPsh)).fold (fCoalg.curry $ alpha .:. swap)) .:. swap
+  (uncurry $ (liftAlg @{sigFuncs} @{gammaPsh} (TermAlgebra g gPsh)).fold (fCoalg.curry $ alpha . swap)) . swap
 
 infixr 1 >>==
 
@@ -171,9 +171,9 @@ public export
                    {gammaPsh =
                    (BoxCoalgProd $ mapPropertyWithRelevant (\_,psh => psh) gammaPsh)})
                 (\w,[< env, x] => k w (env :< x)))
-      .:. tuple [<\_ => id,  xs]
+      . tuple [<\_ => id,  xs]
 
 public export
 (.join) : {sig : Signature} -> {f : Family} -> BoxCoalg f ->
   sig.Free (sig.Free f) -|> sig.Free f
-fPsh.join = fPsh.extend idFam
+fPsh.join = fPsh.extend id

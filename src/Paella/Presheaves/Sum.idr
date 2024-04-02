@@ -45,7 +45,7 @@ public export
 (.evalSum) : {ws : SnocList World} -> {f : Family} -> (coalg : BoxCoalg f) ->
   FamProd [< f ^ ws, FamSum (map Env ws)] -|> f
 coalg.evalSum w [< u, rho] =
-  forget $ applyAtAny' (\_, x, rho' => coalg.map (cotuple rho' idRen) x) u rho
+  forget $ applyAtAny' (\_, x, rho' => coalg.map (cotuple rho' id) x) u rho
 
 ||| Exponentiating by a sum of representables has a currying
 public export
@@ -65,7 +65,7 @@ public export
 (.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (coalg : BoxCoalg g) ->
   (f -|> g ^ ws) -> (FamProd [< f, FamSum (map Env ws)] -|> g)
 coalg.uncurrySum beta w [< u, rho] = forget $
-  applyAtAny' (\_, x, rho' => coalg.map (cotuple rho' idRen) x) (beta w u) rho
+  applyAtAny' (\_, x, rho' => coalg.map (cotuple rho' id) x) (beta w u) rho
 
 ||| Post-composition for exponentiating by a sum of representables
 public export

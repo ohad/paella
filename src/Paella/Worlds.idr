@@ -38,8 +38,8 @@ w1 ~> w2 = (a : A) -> Var a w1 -> Var a w2
 
 ||| Identity renaming
 public export
-idRen : w ~> w
-idRen a x = x
+id : w ~> w
+id a x = x
 
 ||| Composition of renamings
 public export
