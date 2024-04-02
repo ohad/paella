@@ -16,30 +16,30 @@ namespace Any
 
   ||| Inject an element satisfying the property into an `Any`
   export
-  injectAny : {sx : SnocList a} -> {p : a -> Type} ->
+  inject : {sx : SnocList a} -> {p : a -> Type} ->
     x `Elem` sx -> p x -> Any p sx
-  injectAny Here px = Here px
-  injectAny (There y) px = There (injectAny y px)
+  inject Here px = Here px
+  inject (There y) px = There (inject y px)
 
   ||| Move function from property to snoclist
   export
-  rippleAny : {0 sx : SnocList a} -> {0 f : a -> b} ->
+  propertyToMap : {0 sx : SnocList a} -> {0 f : a -> b} ->
     Any (p . f) sx -> Any p (map f sx)
-  rippleAny (Here y) = Here y
-  rippleAny (There y) = There (rippleAny y)
+  propertyToMap (Here y) = Here y
+  propertyToMap (There y) = There (propertyToMap y)
 
   ||| Move function from snoclist to property
   export
-  unrippleAny : {sx : SnocList a} -> {0 f : a -> b} ->
+  mapToProprety : {sx : SnocList a} -> {0 f : a -> b} ->
     Any p (map f sx) -> Any (p . f) sx
-  unrippleAny {sx = [<]} _ impossible
-  unrippleAny {sx = sx :< x} (Here y) = Here y
-  unrippleAny {sx = sx :< x} (There y) = There (unrippleAny y)
+  mapToProprety {sx = [<]} _ impossible
+  mapToProprety {sx = sx :< x} (Here y) = Here y
+  mapToProprety {sx = sx :< x} (There y) = There (mapToProprety y)
 
   ||| Forget `Any` for a constant property
   export
-  forgetAny : {0 sx : SnocList _} -> Any (const type) sx -> type
-  forgetAny pos = (toExists pos).snd
+  forget : {0 sx : SnocList _} -> Any (const type) sx -> type
+  forget y = (toExists y).snd
 
 -- `All` related functions
 
@@ -69,17 +69,17 @@ namespace All
 
   ||| Move function from property to snoclist
   export
-  rippleAll : {0 sx : SnocList a} -> {0 f : a -> b} ->
+  propertyToMap : {0 sx : SnocList a} -> {0 f : a -> b} ->
     All (p . f) sx -> All p (map f sx)
-  rippleAll [<] = [<]
-  rippleAll (sx :< x) = rippleAll sx :< x
+  propertyToMap [<] = [<]
+  propertyToMap (sx :< x) = propertyToMap sx :< x
 
   ||| Move function from snoclist to property
   export
-  unrippleAll : {sx : SnocList a} -> {0 f : a -> b} ->
+  mapToProperty : {sx : SnocList a} -> {0 f : a -> b} ->
     All p (map f sx) -> All (p . f) sx
-  unrippleAll {sx = [<]} [<] = [<]
-  unrippleAll {sx = _ :< _} (sx :< x) = unrippleAll sx :< x
+  mapToProperty {sx = [<]} [<] = [<]
+  mapToProperty {sx = _ :< _} (sx :< x) = mapToProperty sx :< x
 
   ||| Combine two snoclists of properties with access to the element
   export
@@ -98,28 +98,29 @@ namespace All
     mapPropertyWithRelevant f spx :< f _ px
 
   export
-  mapAll : {sx : SnocList _} ->
+  mapPropertyWithRelevant' : {sx : SnocList _} ->
     ((x : _) -> (p . f) x -> (q . g) x) -> All p (map f sx) -> All q (map g sx)
-  mapAll h spfx = rippleAll $ mapPropertyWithRelevant h (unrippleAll spfx)
+  mapPropertyWithRelevant' h spfx =
+    propertyToMap $ mapPropertyWithRelevant h (mapToProperty spfx)
 
 -- `Any` and `All` related functions
 
 ||| Given a snoclist with all elements satisfying `p`, an element satisfying
 ||| `q`, and a function for combining them, apply the function at the element
 export
-applyAny : {sx : SnocList _} ->
+applyAtAny : {sx : SnocList _} ->
   ((x : _) -> p x -> q x -> r x) -> All p sx -> Any q sx -> Any r sx
-applyAny f (sx :< x) (Here y) = Here (f _ x y)
-applyAny f (sx :< x) (There y) = There (applyAny f sx y)
+applyAtAny f (sx :< x) (Here y) = Here (f _ x y)
+applyAtAny f (sx :< x) (There y) = There (applyAtAny f sx y)
 
 export
-applyMapAllAny : {sx : SnocList _} ->
+applyAtAny' : {sx : SnocList _} ->
   ((x : _) -> (p . f) x -> (q . g) x -> r x) ->
   All p (map f sx) -> Any q (map g sx) -> Any r sx
-applyMapAllAny h spfx qgx = applyAny h (unrippleAll spfx) (unrippleAny qgx)
+applyAtAny' h spfx qgx = applyAtAny h (mapToProperty spfx) (mapToProprety qgx)
 
 export
-applyAnyErased : {0 sx : SnocList _} ->
+applyAtAnyErased : {0 sx : SnocList _} ->
   ((0 x : _) -> p x -> q x -> r x) -> All p sx -> Any q sx -> Any r sx
-applyAnyErased f (sx :< x) (Here y) = Here (f _ x y)
-applyAnyErased f (sx :< x) (There y) = There (applyAnyErased f sx y)
+applyAtAnyErased f (sx :< x) (Here y) = Here (f _ x y)
+applyAtAnyErased f (sx :< x) (There y) = There (applyAtAnyErased f sx y)

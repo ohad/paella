@@ -339,7 +339,7 @@ public export
 ArityExponential : {f : Family} -> (BoxCoalg f) ->
   {ws : SnocList World} -> BoxCoalg (f ^ ws)
 ArityExponential {f, ws} boxCoalg
-  = BoxCoalgProd $ rippleAll $ tabulate _
+  = BoxCoalgProd $ propertyToMap $ tabulate _
                  $ \w => w.shiftCoalg boxCoalg
 
 public export
@@ -351,37 +351,38 @@ public export
 ||| Presheaf structure of sum presheaf
 BoxCoalgSum : {sf : SnocList Family} -> ForAll sf (\f => BoxCoalg f) ->
   BoxCoalg $ FamSum sf
-BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho => applyAny (\f, coalg => coalg.map rho) salg sx
+BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho => applyAtAny (\f, coalg => coalg.map rho) salg sx
 
 public export
 -- (f ^ ws) is actually an exponential
 (.evalSum) : {ws : SnocList World} -> {f : Family} -> (fPsh : DAlg f) ->
        FamProd [< f ^ ws, FamSum (map Env ws)] -|> f
 fPsh.evalSum w [< u, rho] =
-  forgetAny $ applyMapAllAny
-                (\w1,x,rho => fPsh.map (cotuple rho idRen) x)
-                u
-                rho
+  forget $ applyAtAny'
+    (\w1,x,rho => fPsh.map (cotuple rho idRen) x)
+    u
+    rho
 
 public export
 (.currySum) : {ws : SnocList World} -> {f : Family} -> (fPsh : DAlg f) ->
   (FamProd [< f, FamSum (map Env ws)] -|> g) -> f -|> g ^ ws
 fPsh.currySum {ws = [<]} alpha w u = [<]
 fPsh.currySum {ws = ws' :< w'} alpha w u =
-  rippleAll (tabulateElem (ws' :< w')
-  (\w1, pos => alpha (w1 ++ w) [< fPsh.map inr u, rippleAny {sx = ws' :< w'} {f = Env} (injectAny pos inl)]))
+  propertyToMap (tabulateElem (ws' :< w')
+  (\w1, pos => alpha (w1 ++ w) [< fPsh.map inr u, propertyToMap {sx = ws' :< w'} {f = Env} (inject pos inl)]))
 
 public export
 (.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (gPsh : DAlg g) ->
   (f -|> g ^ ws) -> (FamProd [< f, FamSum (map Env ws)] -|> g)
 gPsh.uncurrySum beta w [< u, rho] =
-  forgetAny $ applyMapAllAny (\w1, x, rho' => gPsh.map (cotuple rho' idRen) x) (beta w u) rho
+  forget $ applyAtAny' (\w1, x, rho' => gPsh.map (cotuple rho' idRen) x) (beta w u) rho
 
 public export
 expMapSumRep : {ws : SnocList World} ->
   {f,g : Family} ->
   (f -|> g) -> (f ^ ws) -|> (g ^ ws)
-expMapSumRep alpha w sx = mapAll (\x, y => alpha (x ++ w) y) sx
+expMapSumRep alpha w sx =
+  mapPropertyWithRelevant' (\x, y => alpha (x ++ w) y) sx
 
 public export
 expMap :
@@ -670,7 +671,7 @@ public export
 public export
 HeapletCoalg : {shape : World} -> BoxCoalg (Heaplet shape)
 HeapletCoalg = MkBoxCoalg $ \w, heaplet,w',rho =>
-  mapAll
+  mapPropertyWithRelevant'
     (\a => TypeOfFunctoriality a rho)
     heaplet
 
@@ -688,11 +689,11 @@ public export
 extendHeap : {w : World} ->
   FamProd [< Heap , w.shift $ Heaplet w ] -|> w.shift Heap
 extendHeap {w} w' [< heap , init] =
-  let u = unrippleAll $ (HeapletCoalg {shape = w'}).map
+  let u = mapToProperty $ (HeapletCoalg {shape = w'}).map
            (inr {w1 = w}) heap
-      v = unrippleAll init
+      v = mapToProperty init
      -- Probably terrible performance, but meh
-  in rippleAll (v ++ u)
+  in propertyToMap (v ++ u)
 
 public export
 record Private (f : Family) (w : World) where
