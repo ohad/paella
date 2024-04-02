@@ -364,7 +364,7 @@ public export
 fPsh.currySum {ws = [<]} alpha w u = [<]
 fPsh.currySum {ws = ws' :< w'} alpha w u =
   rippleAll (tabulateElem (ws' :< w')
-  (\w1, pos => alpha (w1 ++ w) [< fPsh.map inr u, rippleAny {xs = ws' :< w'} {f = Env} (injectAny pos inl)]))
+  (\w1, pos => alpha (w1 ++ w) [< fPsh.map inr u, rippleAny {sx = ws' :< w'} {f = Env} (injectAny pos inl)]))
 
 public export
 (.uncurrySum) : {ws : SnocList World} -> {g : Family} -> (gPsh : DAlg g) ->

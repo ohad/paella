@@ -1,94 +1,120 @@
 module Data.SnocList.Quantifiers.Extra
 
-import public Data.DPair
+import Data.DPair
 
-import public Data.SnocList
-import public Data.SnocList.Elem
-import public Data.SnocList.Quantifiers
+import Data.SnocList
+import Data.SnocList.Elem
+import Data.SnocList.Quantifiers
 
-public export
-ForAny :  SnocList a -> (0 _ : (a -> Type)) -> Type
-ForAny sx p = Any p sx
-public export
-ForAll : SnocList a -> (0 p : (a -> Type)) -> Type
-ForAll sx p = All p sx
+-- `Any` related functions
 
-public export
-injectAny : {xs : SnocList a} -> {p : a -> Type} -> x `Elem` xs -> p x -> Any p xs
-injectAny Here px = Here px
-injectAny (There y) px = There (injectAny y px)
+namespace Any
+  ||| Swapped version of `Any`
+  public export
+  ForAny :  SnocList a -> (0 _ : (a -> Type)) -> Type
+  ForAny sx p = Any p sx
 
-public export
-tabulate : (sx : SnocList a) -> ((x : a) -> p x) -> ForAll sx p
-tabulate [<] f = [<]
-tabulate (sx :< x) f = tabulate sx f :< f x
+  ||| Inject a property into an `Any`
+  export
+  injectAny : {sx : SnocList a} -> {p : a -> Type} ->
+    x `Elem` sx -> p x -> Any p sx
+  injectAny Here px = Here px
+  injectAny (There y) px = There (injectAny y px)
 
-public export
-tabulateElem : (xs : SnocList a) -> ((x : a) -> x `Elem` xs -> p x) -> ForAll xs p
-tabulateElem [<] f = [<]
-tabulateElem (sx :< x) f = tabulateElem sx (\y, pos => f y (There pos)) :< f x Here
+  ||| Move function from property to snoclist
+  export
+  rippleAny : {0 sx : SnocList a} -> {0 f : a -> b} ->
+    Any (p . f) sx -> Any p (map f sx)
+  rippleAny (Here y) = Here y
+  rippleAny (There y) = There (rippleAny y)
 
-public export
-rippleAll : {0 xs : SnocList a} -> {0 f : a -> b} -> ForAll xs (p . f) -> ForAll (map f xs) p
-rippleAll [<] = [<]
-rippleAll (sx :< x) = rippleAll sx :< x
+  ||| Move function from snoclist to property
+  export
+  unrippleAny : {sx : SnocList a} -> {0 f : a -> b} ->
+    Any p (map f sx) -> Any (p . f) sx
+  unrippleAny {sx = [<]} _ impossible
+  unrippleAny {sx = sx :< x} (Here y) = Here y
+  unrippleAny {sx = sx :< x} (There y) = There (unrippleAny y)
 
-public export
-rippleAny : {0 xs : SnocList a} -> {0 f : a -> b} -> ForAny xs (p . f) -> ForAny (map f xs) p
-rippleAny (Here x) = Here x
-rippleAny (There x) = There (rippleAny x)
+  ||| Forget `Any` for a constant property
+  export
+  forgetAny : {0 sx : SnocList _} -> Any (const type) sx -> type
+  forgetAny pos = (toExists pos).snd
 
-public export
-unrippleAll : {xs : SnocList a} -> {0 f : a -> b} -> ForAll (map f xs) p -> ForAll xs (p . f)
-unrippleAll sy with (xs)
-  unrippleAll ([<]) | [<] = [<]
-  unrippleAll (sy :< y) | (sx :< x) = unrippleAll sy :< y
+namespace All
+  ||| Swapped version of `All`
+  public export
+  ForAll : SnocList a -> (0 _ : (a -> Type)) -> Type
+  ForAll sx p = All p sx
 
-public export
-unrippleAny : {xs : SnocList a} -> {0 f : a -> b} -> ForAny (map f xs) p -> ForAny xs (p . f)
-unrippleAny {xs = [<]} _ impossible
-unrippleAny {xs = sx :< b} (Here  x  ) = Here x
-unrippleAny {xs = sx :< b} (There pos) = There (unrippleAny pos)
+  ||| Tabulate a list into list of proofs given a way to construct proofs
+  export
+  tabulate : (sx : SnocList _) -> ((x : _) -> p x) -> All p sx
+  tabulate [<] f = [<]
+  tabulate (sx :< x) f = tabulate sx f :< f x
 
-public export
-applyAny : {xs : SnocList _} ->
-  ((x : _) -> p x -> q x -> r x) -> All p xs -> Any q xs -> Any r xs
-applyAny f (sx :< x) (Here  u  ) = Here  (f _ x u)
-applyAny f (sx :< x) (There pos) = There (applyAny f sx pos)
+  ||| Tabulate a list into list of proofs given a way to construct proofs which
+  ||| knows the element belongs to the list
+  export
+  tabulateElem :
+    (sx : SnocList _) ->
+    ((x : _) -> x `Elem` sx -> p x) ->
+    All p sx
+  tabulateElem [<] f = [<]
+  tabulateElem (sx :< x) f =
+    tabulateElem sx (\x', y => f x' (There y)) :< f x Here
 
--- Putting these together results in a flexible version
-public export
-applyMapAllAny : {sx : SnocList a} ->
-  ((x : a) -> (p . f) x -> (q . g) x -> r x) ->
+  ||| Move function from property to snoclist
+  export
+  rippleAll : {0 sx : SnocList a} -> {0 f : a -> b} ->
+    All (p . f) sx -> All p (map f sx)
+  rippleAll [<] = [<]
+  rippleAll (sx :< x) = rippleAll sx :< x
+
+  ||| Move function from snoclist to property
+  export
+  unrippleAll : {sx : SnocList a} -> {0 f : a -> b} ->
+    All p (map f sx) -> All (p . f) sx
+  unrippleAll {sx = [<]} [<] = [<]
+  unrippleAll {sx = _ :< _} (sx :< x) = unrippleAll sx :< x
+
+  ||| Combine two snoclists of properties with access to the element
+  export
+  zipPropertyWithRelevant : {sx : SnocList _} ->
+    ((x : _) -> p x -> q x -> r x) -> All p sx -> All q sx -> All r sx
+  zipPropertyWithRelevant f [<] [<] = [<]
+  zipPropertyWithRelevant f (spx :< px) (sqx :< qx) =
+    zipPropertyWithRelevant f spx sqx :< f _ px qx
+
+  ||| Modify the property given a pointwise function with access to the element
+  export
+  mapPropertyWithRelevant : {sx : SnocList _} ->
+    ((x : _) -> p x -> q x) -> All p sx -> All q sx
+  mapPropertyWithRelevant f [<] = [<]
+  mapPropertyWithRelevant f (spx :< px) =
+    mapPropertyWithRelevant f spx :< f _ px
+
+  export
+  mapAll : {sx : SnocList _} ->
+    ((x : _) -> (p . f) x -> (q . g) x) -> All p (map f sx) -> All q (map g sx)
+  mapAll h spfx = rippleAll $ mapPropertyWithRelevant h (unrippleAll spfx)
+
+||| Given a snoclist with all elements satisfying `p`, an element satisfying
+||| `q`, and a function for combining them, apply the function at the element
+export
+applyAny : {sx : SnocList _} ->
+  ((x : _) -> p x -> q x -> r x) -> All p sx -> Any q sx -> Any r sx
+applyAny f (sx :< x) (Here y) = Here (f _ x y)
+applyAny f (sx :< x) (There y) = There (applyAny f sx y)
+
+export
+applyMapAllAny : {sx : SnocList _} ->
+  ((x : _) -> (p . f) x -> (q . g) x -> r x) ->
   All p (map f sx) -> Any q (map g sx) -> Any r sx
-applyMapAllAny h su pos = applyAny h (unrippleAll su) (unrippleAny pos)
+applyMapAllAny h spfx qgx = applyAny h (unrippleAll spfx) (unrippleAny qgx)
 
-public export
-zipPropertyWithRelevant : {xs : SnocList _} ->
-  ((x : _) -> p x -> q x -> r x) -> All p xs -> All q xs -> All r xs
-zipPropertyWithRelevant f [<] vs = [<]
-zipPropertyWithRelevant f (u :< us) (v :< vs) = zipPropertyWithRelevant f u v :< f _ us vs
-
-public export
-mapPropertyWithRelevant : {xs : SnocList _} ->
-  ((x : _) -> p x -> q x) -> All p xs -> All q xs
-mapPropertyWithRelevant f [<] = [<]
-mapPropertyWithRelevant f (sy :< y) = mapPropertyWithRelevant f sy :< f _ y
-
-public export
-mapAll : {sx : SnocList a} ->
-  ((x : a) -> (p . f) x -> (q . g) x) ->
-  All p (map f sx) -> All q (map g sx)
-mapAll h su = rippleAll $ mapPropertyWithRelevant h (unrippleAll su)
-
--- For completeness
-
-public export
-applyAnyErased : {0 xs : SnocList _} ->
-  ((0 x : _) -> p x -> q x -> r x) -> All p xs -> Any q xs -> Any r xs
-applyAnyErased f (sx :< x) (Here  u  ) = Here  (f _ x u)
-applyAnyErased f (sx :< x) (There pos) = There (applyAnyErased f sx pos)
-
-public export
-forgetAny : {0 sx : SnocList a} -> Any (const type) sx -> type
-forgetAny pos = (toExists pos).snd
+export
+applyAnyErased : {0 sx : SnocList _} ->
+  ((0 x : _) -> p x -> q x -> r x) -> All p sx -> Any q sx -> Any r sx
+applyAnyErased f (sx :< x) (Here y) = Here (f _ x y)
+applyAnyErased f (sx :< x) (There y) = There (applyAnyErased f sx y)
