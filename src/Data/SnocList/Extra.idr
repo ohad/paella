@@ -5,17 +5,19 @@ import Data.SnocList.Elem
 
 import Data.Fin
 
-infix 3 !!, ?!
+||| Find a particular element of a snoclist
+export
+index' : (sx : SnocList a) -> (Fin (length sx)) -> a
+index' [<] pos impossible
+index' (sx :< x) FZ = x
+index' (sx :< x) (FS n) = index' sx n
 
-public export
-(!!) : (xs : SnocList a) -> (Fin (length xs)) -> a
-[<] !! pos impossible
-(xs :< x) !!  FZ      = x
-(xs :< x) !! (FS pos) = xs !! pos
-
-public export
-(?!) : (xs : SnocList a) -> (i : Fin (length xs)) ->
-       (xs !! i) `Elem` xs
-[<] ?! i impossible
-(xs :< x) ?!  FZ = Here
-(xs :< x) ?! (FS pos) = There (xs ?! pos)
+||| Proof that the `i`th element of a snoclist is an element of it
+export
+indexIsElem :
+  (sx : SnocList a) ->
+  (i : Fin (length sx)) ->
+  (index' sx i) `Elem` sx
+indexIsElem [<] i impossible
+indexIsElem (sx :< x) FZ = Here
+indexIsElem (sx :< x) (FS n) = There (indexIsElem sx n)

@@ -14,7 +14,7 @@ namespace Any
   ForAny :  SnocList a -> (0 _ : (a -> Type)) -> Type
   ForAny sx p = Any p sx
 
-  ||| Inject a property into an `Any`
+  ||| Inject an element satisfying the property into an `Any`
   export
   injectAny : {sx : SnocList a} -> {p : a -> Type} ->
     x `Elem` sx -> p x -> Any p sx
@@ -40,6 +40,8 @@ namespace Any
   export
   forgetAny : {0 sx : SnocList _} -> Any (const type) sx -> type
   forgetAny pos = (toExists pos).snd
+
+-- `All` related functions
 
 namespace All
   ||| Swapped version of `All`
@@ -98,6 +100,8 @@ namespace All
   mapAll : {sx : SnocList _} ->
     ((x : _) -> (p . f) x -> (q . g) x) -> All p (map f sx) -> All q (map g sx)
   mapAll h spfx = rippleAll $ mapPropertyWithRelevant h (unrippleAll spfx)
+
+-- `Any` and `All` related functions
 
 ||| Given a snoclist with all elements satisfying `p`, an element satisfying
 ||| `q`, and a function for combining them, apply the function at the element
