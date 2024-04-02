@@ -15,7 +15,12 @@ import public Data.List.Quantifiers.Extra
 
 import public Data.Fin
 
-infix 3 !!, ::=, ?!  
+infix 3 !!, ::=, ?!
+
+namespace Data.List.Extra
+  public export
+  (?!) : (xs : List a) -> (i : Fin (length xs)) -> (index' xs i) `Elem` xs
+  (?!) = indexIsElem
 
 ||| The type of available parameter types
 ||| In the final development, we will abstract/parameterise over this type

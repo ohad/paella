@@ -5,15 +5,9 @@ import Data.List.Elem
 
 import Data.Fin
 
-infix 3 !!, ?!
-
-public export
-(!!) : (xs : List a) -> (Fin (length xs)) -> a
-xs !! i = index' xs i
-
-public export
-(?!) : (xs : List a) -> (i : Fin (length xs)) ->
-       (xs !! i) `Elem` xs
-[] ?! i impossible
-(x :: xs) ?!  FZ = Here
-(x :: xs) ?! (FS pos) = There (xs ?! pos)
+||| Proof that the `i`th element of a list is an element of it
+export
+indexIsElem : (xs : List a) -> (i : Fin (length xs)) -> (index' xs i) `Elem` xs
+indexIsElem [] i impossible
+indexIsElem (x :: xs) FZ = Here
+indexIsElem (x :: xs) (FS n) = There (indexIsElem xs n)
