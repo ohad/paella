@@ -67,16 +67,16 @@ LSSigFunc : FunctorialSignature LSSig
 LSSigFunc =
   [ -- read
     MkFunOpSig { Arity = TypeOfFunctoriality ConsCell
-               , Args = varCoalg.map
+               , Args = BoxCoalgVar .map
                }
   , -- write
     MkFunOpSig { Arity = const $ const ()
-               , Args = (BoxCoalgProd [< varCoalg,
+               , Args = (BoxCoalgProd [< BoxCoalgVar,
                                          cast {from = PresheafOver (TypeOf ConsCell)}
                                          (TypeOfFunctoriality ConsCell)]).map
                }
   , -- new
-    MkFunOpSig { Arity = varCoalg.map
+    MkFunOpSig { Arity = BoxCoalgVar .map
                , Args = ([< ConsCell].shiftCoalg {f = (TypeOf ConsCell)} $
                      cast {from = PresheafOver (TypeOf ConsCell)}
                      (TypeOfFunctoriality ConsCell)).map

@@ -3,6 +3,7 @@ module Paella
 import public Data.DPair
 
 import public Data.SnocList
+import public Data.SnocList.Extra
 import public Data.SnocList.Elem
 import public Data.SnocList.Quantifiers
 import public Data.SnocList.Quantifiers.Extra
@@ -16,6 +17,11 @@ import public Data.List.Quantifiers.Extra
 import public Data.Fin
 
 infix 3 !!, ::=, ?!
+
+namespace Data.Snoclist.Extra
+  public export
+  (!!) : (sx : SnocList a) -> (Fin (length sx)) -> a
+  (!!) = index'
 
 namespace Data.List.Extra
   public export
@@ -133,88 +139,120 @@ public export
 (.:.) : {f,g,h : Family} -> (g -|> h) -> (f -|> g) -> (f -|> h)
 (beta .:. alpha) w = beta w . alpha w
 
+--------------------------------------------
+-- The category of presheaves over worlds --
+--------------------------------------------
+
+-- Our presheaves do not have proof of functorial action attached to them since
+-- we perform no proofs elsewhere
+
+||| A family is a presheaf when equipped with a functorial action
 public export
 PresheafOver : Family -> Type
-PresheafOver f = {w1, w2 : World} -> (rho : w1 ~> w2) ->
-  f w1 -> f w2
+PresheafOver f = {w1, w2 : World} -> (rho : w1 ~> w2) -> (f w1 -> f w2)
+
+infixr 1 =|>
 
 namespace Coalgebra
   ||| A presheaf structure given in end form
   ||| The right-adjoint Fiore-transform comonad (Box)
   public export
-  Nil : Family -> Family
-  [] f a = (b : World) -> (a ~> b) -> f b
+  Box : Family -> Family
+  Box f a = (b : World) -> (a ~> b) -> f b
 
-  ||| Fiore transform: a BoxCoalg (with laws) is equivalent to a
-  ||| presheaf (with laws)
+  ||| Fiore transform: a `BoxCoalg` (with laws) is equivalent to a presheaf
+  ||| (with laws)
   public export
   record BoxCoalg (f : Family) where
     constructor MkBoxCoalg
-    next : f -|> [] f
+    next : f -|> Box f
 
+  ||| A `BoxCoalg` gives a functorial action
   public export
   (.map) : {f : Family} -> BoxCoalg f -> PresheafOver f
   coalg.map {w1,w2} rho v = coalg.next w1 v w2 rho
 
+  ||| A coalgebra map, if we had laws this would be the same as a natural
+  ||| transformation
   public export
   (=|>) : {f,g : Family} -> (fAlg : BoxCoalg f) -> (gAlg : BoxCoalg g) -> Type
   (=|>) {f,g} _ _ = f -|> g
 
+||| A functorial action for a family induces a box coalgebra
 public export
 {f : _} -> Cast (PresheafOver f) (BoxCoalg f) where
   cast psh = MkBoxCoalg $ \w, x, w', rho => psh rho x
 
+||| A box coalgebra for a family induces a functorial action
 public export
 {f : _} -> Cast (BoxCoalg f) (PresheafOver f) where
   cast coalg = coalg.map
 
+||| The family of variables of type `a` is a presheaf
 public export
-||| Fiore-transform of presheaf exponentiation: f^(Yoneda w1).
+BoxCoalgVar : {a : A} -> BoxCoalg (Var a)
+BoxCoalgVar = MkBoxCoalg $ \w, pos, w', rho => rho a pos
+
+-- Exponentiating by representables, transformed
+
+||| Fiore-transform of presheaf exponentiation of `f` by Yoneda of `w1`
+public export
 (.shift) : World -> Family -> Family
 w1.shift f w2 = f (w1 ++ w2)
 
+||| Fiore-transform of presheaf exponentiation of `f` by Yoneda of `w1`, swapped
 public export
 (.shiftLeft) : World -> Family -> Family
 w1.shiftLeft f w2 = f (w2 ++ w1)
 
+||| Exponentiating a presheaf by a representable gives a presheaf
 public export
 (.shiftCoalg) : {f : Family} ->
   (w1 : World) -> BoxCoalg f -> BoxCoalg (w1.shift f)
 w1.shiftCoalg coalg = MkBoxCoalg $ \w, x, w', rho =>
   coalg.map (bimap {w1 = w1} idRen rho) x
 
+||| Exponentiating a presheaf by a representable gives a presheaf, swapped
 public export
-||| The product family is given pointwise
+(.shiftLeftCoalg) : {f : Family} ->
+  (w1 : World) -> BoxCoalg f -> BoxCoalg (w1.shiftLeft f)
+w1.shiftLeftCoalg coalg = MkBoxCoalg $ \w, x, w', rho =>
+  coalg.map (bimap {w2 = w1} rho idRen) x
+
+-- Product structure
+
+||| The product of families is given pointwise
+public export
 FamProd : SnocList Family -> Family
 FamProd sf w = ForAll sf $ \f => f w
 
+||| When each family in a product of families is a presheaf, then so is the
+||| product
 public export
-||| Presheaf structure of product presheaf
-BoxCoalgProd : {sf : SnocList Family} -> ForAll sf (\f => BoxCoalg f) ->
-  BoxCoalg $ FamProd sf
-BoxCoalgProd sbox = MkBoxCoalg $ \w, sx, w', rho =>
-  zipPropertyWithRelevant (\f,box,x => box.map rho x)
-    sbox
-    sx
+BoxCoalgProd : {sf : SnocList Family} ->
+  ForAll sf BoxCoalg -> BoxCoalg $ FamProd sf
+BoxCoalgProd scoalg = MkBoxCoalg $ \w, sx, w', rho =>
+  zipPropertyWithRelevant (\f, coalg, x => coalg.map rho x) scoalg sx
 
+||| Given a collection of maps out of a family `f`, we can tuple them together
 public export
 tuple : {f : Family} -> {sg : SnocList Family} ->
-  ForAll sg (\g => f -|> g) ->
-  f -|> FamProd sg
-tuple hs w x = mapProperty (\h => h w x) hs
+  ForAll sg (\g => f -|> g) -> (f -|> FamProd sg)
+tuple sh w x = mapProperty (\h => h w x) sh
 
--- {- TODO: For completeness
--- projection : {sf : SnocList Family} -> (i : Fin $ length sf) ->
---   FamProd sf -|> (sf !! i)
--- -}
+||| Projection out of a product of families
+projection : {sf : SnocList Family} ->
+  (i : Fin $ length sf) -> FamProd sf -|> (sf !! i)
+projection i w sx = indexAll (indexIsElem sf i) sx
+
+||| Product of families is symmetric
+public export
+swap : FamProd [< f, g] -|> FamProd [< g, f]
+swap w [< x, y] = [< y, x]
 
 public export
 Env : World -> Family
 Env w = (w ~>)
-
-public export
-swap : FamProd [< f , g] -|> FamProd [< g, f]
-swap w [< x , y] = [< y , x]
 
 public export
 -- (f.shift) is actually an exponential
@@ -289,11 +327,6 @@ psh.shiftFromRepr =
   let coalg : BoxCoalg g = cast psh
       algeb = coalg.eval
   in (w0.shiftCoalg coalg).map.abst algeb
-
-public export
--- Did we not define this already?
-varCoalg : {a : A} -> BoxCoalg (Var a)
-varCoalg = MkBoxCoalg $ \w, pos, w', rho => rho a pos
 
 public export
 record OpSig where
