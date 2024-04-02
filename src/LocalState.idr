@@ -224,7 +224,7 @@ PrivateCoal : {f : Family} ->
   (coalg : BoxCoalg f) -> BoxCoalg (Private f)
 PrivateCoal coalg = MkBoxCoalg $ \w, hidden, w', rho => Hide
   { ctx = hidden.ctx
-  , val = coalg.map (Paella.bimap idRen rho) hidden.val
+  , val = coalg.map (Paella.Worlds.bimap idRen rho) hidden.val
   }
 
 public export
@@ -275,7 +275,7 @@ LSalg = MkAlgebraOver
                   := extendHeap {w = [< ConsCell]} shape
                      [< heap , [<
                        TypeOfFunctoriality ConsCell
-                         (Paella.bimap idRen rho)
+                         (Paella.Worlds.bimap idRen rho)
                        newval
                      ]]
           newloc : Var ConsCell $ [< ConsCell] ++ shape

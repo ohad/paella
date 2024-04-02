@@ -14,6 +14,11 @@ index' [<] pos impossible
 index' (sx :< x) FZ = x
 index' (sx :< x) (FS n) = index' sx n
 
+infix 3 !!
+public export
+(!!) : (sx : SnocList a) -> (Fin (length sx)) -> a
+(!!) = index'
+
 ||| Proof that the `i`th element of a snoclist is an element of it
 export
 indexIsElem :
