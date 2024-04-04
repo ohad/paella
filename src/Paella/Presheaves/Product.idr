@@ -11,6 +11,8 @@ import Paella.Worlds
 import Paella.Families
 import Paella.Presheaves
 
+%default total
+
 -- Product structure
 
 ||| The product of families is given pointwise

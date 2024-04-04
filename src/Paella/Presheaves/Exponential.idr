@@ -10,6 +10,8 @@ import Paella.Presheaves
 import Paella.Presheaves.Representable
 import Paella.Presheaves.Product
 
+%default total
+
 -- General exponential of presheaves
 
 infixr 2 -%

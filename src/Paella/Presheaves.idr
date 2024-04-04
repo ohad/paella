@@ -3,6 +3,8 @@ module Paella.Presheaves
 import Paella.Worlds
 import Paella.Families
 
+%default total
+
 --------------------------------------------
 -- The category of presheaves over worlds --
 --------------------------------------------

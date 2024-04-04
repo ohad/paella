@@ -9,6 +9,8 @@ import Paella.Families
 import Paella.Presheaves
 import Paella.Presheaves.Product
 
+%default total
+
 -- Representable functors
 
 ||| The representable functor at `w`, so a map `Env w -|> f` is morally an

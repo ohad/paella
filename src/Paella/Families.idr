@@ -2,6 +2,8 @@ module Paella.Families
 
 import Paella.Worlds
 
+%default total
+
 ------------------------------------------
 -- The category of families over worlds --
 ------------------------------------------

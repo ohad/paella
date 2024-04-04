@@ -10,6 +10,8 @@ import Paella.Presheaves
 import Paella.Presheaves.Representable
 import Paella.Presheaves.Product
 
+%default total
+
 -- Coproduct structure
 
 ||| When each family in a sum of families is a presheaf, then so is the sum

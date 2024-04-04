@@ -1,5 +1,7 @@
 module Paella.Worlds
 
+%default total
+
 ------------------------------------------
 -- The category of worlds of parameters --
 ------------------------------------------
