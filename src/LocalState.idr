@@ -12,22 +12,13 @@ public export
 -- Postulate: each parameter has a type
 -- For now, just cons cells
 TypeOf : A -> Family
-TypeOf P =
-  (FamProd [< const String, Var ConsCell])
-
-public export
-TypeOfFunctoriality : (a : A) -> PresheafOver $ TypeOf a
--- Should propagate structure more nicely
-TypeOfFunctoriality P rho ([< str , loc]) =
-  [< str , rho _ loc]
+TypeOf P = FamProd [< const String, Var ConsCell]
 
 %hint
 public export
-TypeOfBoxFunctoriality : (a : A) -> BoxCoalg $ TypeOf a
+BoxCoalgA : (a : A) -> BoxCoalg $ TypeOf a
 -- Should propagate structure more nicely
-TypeOfBoxFunctoriality a = cast {from = PresheafOver _} (TypeOfFunctoriality a)
-
-
+BoxCoalgA P = BoxCoalgProd $ [< BoxCoalgConst, BoxCoalgVar]
 
 public export
 ||| Type of reading an A-cell
@@ -73,15 +64,11 @@ LSSigFunc =
                }
   , -- write
     MkFunOpSig { Arity = BoxCoalgConst
-               , Args = (BoxCoalgProd [< BoxCoalgVar,
-                                         cast {from = PresheafOver (TypeOf ConsCell)}
-                                         (TypeOfFunctoriality ConsCell)])
+               , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgA ConsCell]
                }
   , -- new
     MkFunOpSig { Arity = BoxCoalgVar
-               , Args = ([< ConsCell].shiftCoalg {f = (TypeOf ConsCell)} $
-                     cast {from = PresheafOver (TypeOf ConsCell)}
-                     (TypeOfFunctoriality ConsCell))
+               , Args = [< ConsCell].shiftCoalg (BoxCoalgA ConsCell)
                }
   ]
 
@@ -114,7 +101,7 @@ new : FamProd [< [<ConsCell].shiftLeft (TypeOf ConsCell)] -|>
       LSSig .Free (Var ConsCell)
 new w [<val] =
   -- move new location to the bottom of the heap
-  let val' = (TypeOfFunctoriality ConsCell)
+  let val' = (BoxCoalgA ConsCell).map
         (swapRen {w1 = w, w2 = [<ConsCell]}) val
   in Op (LSSig ?! 2) w
     [< val' , abst pure w]
@@ -146,7 +133,7 @@ public export
 HeapletCoalg : {shape : World} -> BoxCoalg (Heaplet shape)
 HeapletCoalg = MkBoxCoalg $ \w, heaplet,w',rho =>
   mapPropertyWithRelevant'
-    (\a => TypeOfFunctoriality a rho)
+    (\a => (BoxCoalgA a).map rho)
     heaplet
 
 public export
@@ -269,15 +256,15 @@ LSalg = MkAlgebraOver
     \roots, [< kont, [<loc, newval]], shape, [< rho, heap] =>
        let newHeap = heap.update
                      (rho _ loc ::=
-                        TypeOfFunctoriality ConsCell rho newval)
+                        (BoxCoalgA ConsCell).map rho newval)
        in eval shape [< kont shape [< rho , ()] , newHeap]
   , -- new
     \roots, [< kont, newval], shape, [< rho, heap] =>
       let newheap : Heap ([< ConsCell] ++ shape)
                   := extendHeap {w = [< ConsCell]} shape
                      [< heap , [<
-                       TypeOfFunctoriality ConsCell
-                         (Paella.Worlds.bimap id rho)
+                        (BoxCoalgA ConsCell).map
+                          (Paella.Worlds.bimap id rho)
                        newval
                      ]]
           newloc : Var ConsCell $ [< ConsCell] ++ shape
