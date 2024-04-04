@@ -65,7 +65,7 @@ LSSig = [
 
 %hint
 public export
-LSSigFunc : FunctorialSignature LSSig
+LSSigFunc : BoxCoalgSignature LSSig
 LSSigFunc =
   [ -- read
     MkFunOpSig { Arity = BoxCoalgProd [< BoxCoalgConst, BoxCoalgVar]

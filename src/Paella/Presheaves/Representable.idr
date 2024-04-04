@@ -19,6 +19,7 @@ public export
 Env : World -> Family
 Env w = (w ~>)
 
+||| Reprentable presheaves are presheaves
 BoxCoalgEnv : {w1 : World} -> BoxCoalg (Env w1)
 BoxCoalgEnv = MkBoxCoalg $ \w, rho, w', rho' => rho' . rho
 
