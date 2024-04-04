@@ -16,7 +16,21 @@ authors = "Ohad Kammar and Jesse Sigal"
 depends = contrib
 
 -- modules to install
-modules = Paella
+modules =
+  Data.List.Extra,
+  Data.List.Quantifiers.Extra,
+  Data.SnocList.Extra,
+  Data.SnocList.Quantifiers.Extra,
+  Paella,
+  Paella.Worlds,
+  Paella.Families,
+  Paella.Presheaves,
+  Paella.Presheaves.Basic,
+  Paella.Presheaves.Representable,
+  Paella.Presheaves.Product,
+  Paella.Presheaves.Sum,
+  Paella.Presheaves.Exponential,
+  LocalState
 
 -- main file (i.e. file to load at REPL)
 -- main =
