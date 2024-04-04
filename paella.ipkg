@@ -17,6 +17,10 @@ depends = contrib
 
 -- modules to install
 modules =
+  Data.List.Extra,
+  Data.List.Quantifiers.Extra,
+  Data.SnocList.Extra,
+  Data.SnocList.Quantifiers.Extra,
   Paella,
   Paella.Worlds,
   Paella.Families,
