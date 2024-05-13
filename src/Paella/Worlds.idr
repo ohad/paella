@@ -14,15 +14,36 @@ data A = P
 ||| A zero-th order context, (co)arities of operations are covariant presheaves
 ||| over worlds
 public export
-World : Type
-World = SnocList A
+data World = Leaf | Node World (Maybe A) World
 
 ||| A `x : Var a w` is a first-order variable of paramter type `a` in `w`
 public export
 data Var : A -> World -> Type where
-  Here : Var a (w :< a)
-  There : Var a w -> Var a (w :< b)
+  Nil : Var a $ Node l (Just a) r
+  L : Var a l -> Var a $ Node l d r
+  R : Var a r -> Var a $ Node l d r
 
+data Bit = O | I
+
+insert : Bit -> (this, other : World) -> Maybe A -> World
+insert O this other a = Node this a other
+insert I this other a = Node other a this
+
+(::) : (b : Bit) -> Var c this -> Var c (insert b this other d)
+O :: xs = L xs
+I :: xs = R xs
+
+Ex1 : World
+Ex1 =
+  Node (Node Leaf (Just P) Leaf)
+       Nothing
+       ((Node (Node Leaf (Just P) Leaf) Nothing Leaf))
+
+Ex11, Ex12 : Var P Ex1
+Ex11 = [O]
+Ex12 = [I, O]
+
+{-
 ||| A variable in `w1 ++ w2` is either in `w1` or `w2`
 export
 split : {w2 : World} -> Var a (w1 ++ w2) -> Either (Var a w1) (Var a w2)
@@ -30,6 +51,7 @@ split {w2 = [<]} x = Left x
 split {w2 = _ :< _} Here = Right Here
 split {w2 = _ :< _} (There x) = bimap id There (split x)
 
+public export
 infixr 1 ~>
 
 ||| A renaming from `src` to `tgt`, sending each variable in `src` to a
@@ -81,3 +103,4 @@ bimap : {w1, w2, w1', w2' : World} ->
 bimap f g a x = case split x of
   Left  y => inl a (f a y)
   Right y => inr a (g a y)
+-}
