@@ -141,3 +141,8 @@ bimap :
 bimap f g a [] = []
 bimap f g a (L x) = L (f a x)
 bimap f g a (R x) = R (g a x)
+
+public export
+(++) :
+  World -> World -> World
+l ++ r = Node l Nothing r

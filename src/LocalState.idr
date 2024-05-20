@@ -2,6 +2,7 @@ module LocalState
 
 import Paella
 
+export
 infix 3 !!, ::=, ?!
 
 public export
@@ -13,6 +14,10 @@ public export
 -- For now, just cons cells
 TypeOf : A -> Family
 TypeOf P = FamProd [< const String, Var ConsCell]
+
+public export
+Heaplet : (shape : World) -> Family
+Heaplet shape = ?actuallyIamHere --FamProd (map TypeOf shape)
 
 %hint
 public export
@@ -40,12 +45,12 @@ writeType a = MkOpSig
 
 public export
 ||| Allocate a fresh cell storing an a value
-newType : A -> OpSig
-newType a = MkOpSig
-  { Args = [< a].shift (TypeOf a)
-  , Arity = Var a
+newType : World -> OpSig
+newType w = MkOpSig
+  { Args = w.shift (Heaplet w)
+  , Arity = ?iAmHere
   }
-
+{-
 public export
 LSSig : Signature
 LSSig = [
@@ -105,10 +110,6 @@ new w [<val] =
         (swapRen {w1 = w, w2 = [<ConsCell]}) val
   in Op (LSSig ?! 2) w
     [< val' , abst pure w]
-
-public export
-Heaplet : (shape : World) -> Family
-Heaplet shape = FamProd (map TypeOf shape)
 
 public export
 (!!) : Heaplet shape w -> Var a shape ->
@@ -286,3 +287,4 @@ handle :
 handle comp =
   let coalg = MkBoxCoalg (\w, strs, b, f => strs)
   in (LSalg {coalg}).fold (val {coalg}) [<] comp [<] [< id,[<]]
+-}
