@@ -30,6 +30,7 @@ modules =
   Paella.Presheaves.Product,
   Paella.Presheaves.Sum,
   Paella.Presheaves.Exponential,
+  GroundState,
   LocalState
 
 -- main file (i.e. file to load at REPL)
