@@ -14,10 +14,15 @@ import Data.Vect.Quantifiers
 public export
 data A = P
 
+||| A tree data type which is the basis of our worlds
+public export
+data Tree a = Leaf | Node (Tree a) (Maybe a) (Tree a)
+
 ||| A zero-th order context, (co)arities of operations are covariant presheaves
 ||| over worlds
 public export
-data World = Leaf | Node World (Maybe A) World
+World : Type
+World = Tree A
 
 ||| A `x : Var a w` is a first-order variable of paramter type `a` in `w`
 public export
@@ -146,3 +151,25 @@ public export
 (++) :
   World -> World -> World
 l ++ r = Node l Nothing r
+
+namespace All
+  public export
+  MaybeP : (p : (a -> Type)) -> Maybe a -> Type
+  MaybeP p Nothing = Unit
+  MaybeP p (Just x) = p x
+
+  ||| A proof that all elements of a tree satisfy a property. It is a tree of
+  ||| proofs, corresponding element-wise to the `Tree`.
+  public export
+  data All : (0 _ : (a -> Type)) -> Tree a -> Type where
+    Leaf : All p Leaf
+    {-
+    NodeJ : All p l -> p x  -> All p r -> All p (Node l (Just x) r)
+    NodeN : All p l -> Unit -> All p r -> All p (Node l Nothing r)
+    -}
+    Node : All p l -> MaybeP p mx -> All p r -> All p (Node l mx r)
+
+  ||| Flipped version of `All`
+  public export
+  ForAll :  Tree a -> (0 _ : (a -> Type)) -> Type
+  ForAll t p = All p t
