@@ -3,6 +3,11 @@ module Paella.Worlds
 import Data.Vect
 import Data.Vect.Quantifiers
 
+import Deriving.Foldable
+import Deriving.Functor
+%hide Data.Morphisms.(~>)
+
+%language ElabReflection
 %default total
 
 ------------------------------------------
@@ -17,6 +22,26 @@ data A = P
 ||| A tree data type which is the basis of our worlds
 public export
 data Tree a = Leaf | Node (Tree a) (Maybe a) (Tree a)
+
+||| `Tree` is a functor
+public export
+Functor Tree where
+  map f Leaf                = Leaf
+  map f (Node l Nothing r)  = Node (map f l) Nothing      (map f r)
+  map f (Node l (Just x) r) = Node (map f l) (Just (f x)) (map f r)
+
+treeFoldable : Foldable Tree
+treeFoldable = %runElab derive
+
+||| `Tree` is foldable
+public export
+Foldable Tree where
+  foldr = foldr @{treeFoldable}
+
+-- Foldable Tree where
+--   foldr func init Leaf = init
+--   foldr func init (Node l Nothing r) = ?res_2
+--   foldr func init (Node l (Just x) r) = ?res_3
 
 ||| A zero-th order context, (co)arities of operations are covariant presheaves
 ||| over worlds

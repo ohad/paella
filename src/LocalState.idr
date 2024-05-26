@@ -15,9 +15,12 @@ public export
 TypeOf : A -> Family
 TypeOf P = FamProd [< const String, Var ConsCell]
 
+FamProdTree : Tree Family -> Family
+FamProdTree tf w = ForAll tf $ \f => f w
+
 public export
 Heaplet : (shape : World) -> Family
-Heaplet shape = ?actuallyIamHere --FamProd (map TypeOf shape)
+Heaplet shape = FamProdTree (map TypeOf shape)
 
 %hint
 public export
@@ -42,14 +45,14 @@ writeType a = MkOpSig
   , Arity = const ()
   }
 
-
 public export
 ||| Allocate a fresh cell storing an a value
 newType : World -> OpSig
 newType w = MkOpSig
   { Args = w.shift (Heaplet w)
-  , Arity = ?iAmHere
+  , Arity = FamProd ([<] <>< toList (map Var w))
   }
+
 {-
 public export
 LSSig : Signature
