@@ -2,6 +2,68 @@ module GroundState
 
 import Paella
 
+toRen : Var P w -> ((Node Leaf (Just P) Leaf) ~> w)
+toRen []      P []     = []
+toRen []      _ (L []) impossible
+toRen []      _ (R []) impossible
+toRen (L pos) a v'     = L (toRen pos a v')
+toRen (R pos) a v'     = R (toRen pos a v')
+
+public export
+data Free : World -> Type where
+  Nil : Free $ Node l Nothing r
+  L : Free l -> Free $ Node l d r
+  R : Free r -> Free $ Node l d r
+
+Status : World -> Maybe A -> Type
+Status w Nothing = Free w
+Status w (Just a) = Var a w
+
+statusL : {mx : Maybe A} -> Status l mx -> Status (Node l d r) mx
+statusL {mx = Nothing} s = L s
+statusL {mx = (Just x)} s = L s
+
+statusR : {mx : Maybe A} -> Status r mx -> Status (Node l d r) mx
+statusR {mx = Nothing} s = R s
+statusR {mx = (Just x)} s = R s
+
+residency : (w : World) -> ForAllM w (Status w)
+residency Leaf = Leaf
+residency (Node l Nothing r) =
+  let l' = mapPropertyWithRelevant statusL (residency l)
+      r' = mapPropertyWithRelevant statusR (residency r)
+  in Node l' Nil r'
+residency (Node l (Just x) r) =
+  let l' = mapPropertyWithRelevant statusL (residency l)
+      r' = mapPropertyWithRelevant statusR (residency r)
+  in Node l' Nil r'
+
+||| Extend a world with a single new variable
+||| How do you enforce more about this?
+public export
+record Extension (a : A) (w : World) where
+  constructor Extend
+  w' : World
+  rho : w ~> w'
+  var : Var a w'
+
+||| Extend a world by filling in a free spot
+extend : {a : A} -> (w : World) -> Free w -> Extension a w
+extend (Node l Nothing r) Nil =
+  Extend (Node l (Just a) r) (cotuple winl winr) Nil
+extend (Node l d r) (L pos) =
+  let lext = extend {a} l pos
+      rho' = bimap {w1 = l, w1' = lext.w'} lext.rho id
+  in Extend (Node (lext.w') d r) rho' (L lext.var)
+extend (Node l d r) (R pos) =
+  let rext = extend {a} r pos
+      rho' = bimap {w2 = r, w2' = rext.w'} id rext.rho
+  in Extend (Node l d (rext.w')) rho' (R rext.var)
+
+extendVar : {a : A} -> {w : World} ->
+  Var a w -> (ext : Extension b w) -> Var a ext.w'
+extendVar v ext = ext.rho _ v
+
 Eq (Var a w) where
   Nil   == Nil   = True
   (L x) == (L y) = x == y
@@ -11,11 +73,21 @@ Eq (Var a w) where
 Single : A -> World
 Single x = Node Leaf (Just x) Leaf
 
-splitAll : {tx, ty : Tree _} -> All p (tx ++ ty) -> (All p tx, All p ty)
+splitAll : {tx, ty : Tree _} ->
+  All p (tx ++ ty) -> (All p tx, All p ty)
 splitAll (Node l () r) = (l, r)
 
-joinAll : {tx, ty : Tree _} -> All p tx -> All p ty -> All p (tx ++ ty)
+joinAll : {tx, ty : Tree _} ->
+  All p tx -> All p ty -> All p (tx ++ ty)
 joinAll ta tb = Node ta () tb
+
+splitAllM : {tx, ty : Tree _} ->
+  AllM p (tx ++ ty) -> (AllM p tx, p Nothing, AllM p ty)
+splitAllM (Node l x r) = (l, x, r)
+
+joinAllM : {tx, ty : Tree _} ->
+  AllM p tx -> p Nothing -> AllM p ty -> AllM p (tx ++ ty)
+joinAllM ta mx tb = Node ta mx tb
 
 public export
 IntCell : A
@@ -127,7 +199,7 @@ equal : FamProd [< Var IntCell, Var IntCell] -|> LSSig .Free (const Bool)
 equal w vpair = Op (LSSig ?! 3) w [< vpair, abst pure w]
 
 StateIn : Family
-StateIn w = ForAll w ValueOf
+StateIn w = ForAllM w (MaybeP ValueOf)
 
 getComponent : Var a w -> StateIn w -> ValueOf a
 getComponent []      (Node _ x _) = x
@@ -139,13 +211,28 @@ setComponent []      (Node l _ r) y = Node l y r
 setComponent (L pos) (Node l x r) y = Node (setComponent pos l y) x r
 setComponent (R pos) (Node l x r) y = Node l x (setComponent pos r y)
 
+allocComponent : {a : A} ->
+  (w : World) -> Free w -> StateIn w -> ValueOf a ->
+  (ext : Extension a w ** StateIn ext.w')
+allocComponent (Node l Nothing r) [] (Node sl () sr) v =
+  (Extend (Node l (Just a) r) (cotuple winl winr) Nil ** Node sl v sr)
+allocComponent (Node l d r) (L pos) (Node sl ms sr) v =
+  case (allocComponent l pos sl v) of
+    (Extend l' rhol varl ** sl') =>
+      (Extend (Node l' d r) (bimap rhol id) (L varl) ** Node sl' ms sr)
+allocComponent (Node l d r) (R pos) (Node sl ms sr) v =
+  case (allocComponent r pos sr v) of
+    (Extend r' rhor varr ** sr') =>
+      (Extend (Node l d r') (bimap id rhor) (R varr) ** Node sl ms sr')
+
 -- Viewed as in Inj-presheaf, free Inj-LS algebra on the presheaf which is
 -- constantly t
 Heap : Type -> Family
-Heap t w = StateIn w -> Pair t (StateIn w)
+Heap t w = (Maybe (Free w), StateIn w) -> Pair t (StateIn w)
 
-pureHeap : t -> Heap t w
-pureHeap t = \x => (t, x)
+{-
+pureHeap : {w : World} -> t -> Heap t w
+pureHeap t = \x => (t, HideStateIn w id x [])
 
 runHeap : Heap t w -> StateIn w -> Pair t (StateIn w)
 runHeap h ss = h ss
@@ -161,14 +248,26 @@ writeHeapOp :
 writeHeapOp w [< cont, [< var, val]] ss =
   let ss' = setComponent var ss val in
   eval w [< cont, ()] ss'
-
+-}
 newHeapOp :
-  FamProd [< (Single IntCell).shift (Heap t), TypeOf IntCell] -|> Heap t
-newHeapOp w [< cont, val] ss =
-  let combined = joinAll (Node Leaf val Leaf) ss
-      (t, ss') = cont combined
-  in (t, snd (splitAll ss'))
+  FamProd [< Env (Single IntCell) -% Heap t, TypeOf IntCell] -|> Heap t
+newHeapOp q [< cont, val] (Nothing, ss) =
+  let combined = joinAllM (Node {mx = Just IntCell} Leaf val Leaf) () ss
+      (t, ss') = cont
+        (Node (Node Leaf (Just P) Leaf) Nothing q)
+        [< inr, inl]
+        (Just Nil, combined)
+  in (t, snd . snd $ splitAllM ss')
+newHeapOp q [< cont, val] (Just f, ss) =
+  case (allocComponent {a = IntCell} q f ss val) of
+    (Extend w' rho var ** ss') =>
+      let shed = cont w' [< rho, toRen var] (Nothing, ss')
+      in ?res
 
+  -- let combined = joinAll (Node Leaf val Leaf) ss
+  --     (t, ss') = cont combined
+  -- in (t, snd (splitAll ss'))
+{-
 -- The action of the injection n -> n + 1 of Inj on the heap
 extendHeap : Heap t -|> (Single IntCell).shift (Heap t)
 extendHeap w h sv =
@@ -265,3 +364,4 @@ Ex : (Unit, StateIn TwoIntCell)
 Ex = handle TwoIntCell (
     GroundState.swap TwoIntCell [< L Nil, R Nil]
   ) TwoIntCell id (Node (Node Leaf 1 Leaf) () (Node Leaf 2 Leaf))
+-}

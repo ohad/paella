@@ -198,3 +198,32 @@ namespace All
   public export
   ForAll :  Tree a -> (0 _ : (a -> Type)) -> Type
   ForAll t p = All p t
+
+namespace AllM
+  public export
+  data AllM : (0 _ : (Maybe a -> Type)) -> Tree a -> Type where
+    Leaf : AllM p Leaf
+    {-
+    NodeJ : All p l -> p x  -> All p r -> All p (Node l (Just x) r)
+    NodeN : All p l -> Unit -> All p r -> All p (Node l Nothing r)
+    -}
+    Node : AllM p l -> p mx -> AllM p r -> AllM p (Node l mx r)
+
+  ||| Flipped version of `All`
+  public export
+  ForAllM :  Tree a -> (0 _ : (Maybe a -> Type)) -> Type
+  ForAllM t p = AllM p t
+
+  export
+  mapProperty : {t : Tree _} ->
+    ({0 mx : _} -> p mx -> q mx) -> AllM p t -> AllM q t
+  mapProperty f Leaf = Leaf
+  mapProperty f (Node l x r) =
+    Node (mapProperty f l) (f x) (mapProperty f r)
+
+  export
+  mapPropertyWithRelevant : {t : Tree _} ->
+    ((mx : _) -> p mx -> q mx) -> AllM p t -> AllM q t
+  mapPropertyWithRelevant f Leaf = Leaf
+  mapPropertyWithRelevant f (Node l x r) =
+    Node (mapPropertyWithRelevant f l) (f _ x) (mapPropertyWithRelevant f r)
