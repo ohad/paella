@@ -4,11 +4,6 @@ import Paella.Worlds
 
 %default total
 
-------------------------------------------
--- The category of families over worlds --
-------------------------------------------
-
-||| A `Family` is a family of typs over worlds
 public export
 Family : Type
 Family = World -> Type

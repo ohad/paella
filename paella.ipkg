@@ -17,10 +17,6 @@ depends = contrib
 
 -- modules to install
 modules =
-  Data.List.Extra,
-  Data.List.Quantifiers.Extra,
-  Data.SnocList.Extra,
-  Data.SnocList.Quantifiers.Extra,
   Paella,
   Paella.Worlds,
   Paella.Families,
@@ -30,14 +26,13 @@ modules =
   Paella.Presheaves.Product,
   Paella.Presheaves.Sum,
   Paella.Presheaves.Exponential,
-  GroundState,
-  LocalState
+  Time
 
 -- main file (i.e. file to load at REPL)
--- main =
+main = Time
 
 -- name of executable
--- executable =
+executable = time
 -- opts =
 sourcedir = "src"
 -- builddir =

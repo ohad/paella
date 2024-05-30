@@ -57,16 +57,3 @@ export
 coalg.swapExps =
   (BoxCoalgExp).curry $ (BoxCoalgProd [< BoxCoalgExp , coalg]).curry $
     \w, [<[< a, y], x] => eval w [< eval w [< a, x], y]
-
-||| Turn a real exponential by a representable into the special case
-export
-shiftIntoRepr : {w1 : World} -> {g : Family} ->
-  (Env w1 -% g) -|> (w1.shift g)
-shiftIntoRepr = BoxCoalgExp .curryRep eval
-
-||| Turn the special case of exponentiating by a representable into a real
-||| exponential
-export
-(.shiftFromRepr) : {w1 : World} -> {g : Family} -> (coalg : BoxCoalg g) ->
-   (w1.shift g) -|> (Env w1 -% g)
-coalg.shiftFromRepr = (w1.shiftCoalg coalg).curry coalg.evalRep
