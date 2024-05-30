@@ -38,7 +38,21 @@ residency (Node l (Just x) r) =
       r' = mapPropertyWithRelevant statusR (residency r)
   in Node l' Nil r'
 
-||| Extend a world with a single new variable
+||| Find a free spot bottom up.
+findFree : (w : World) -> Maybe (Free w)
+findFree Leaf = Nothing
+findFree (Node l d r) =
+  case (findFree l) of
+    Just f => Just (L f)
+    Nothing =>
+      case (findFree r) of
+        Just f => Just (R f)
+        Nothing =>
+          case d of
+            Just _ => Nothing
+            Nothing => Just Nil
+
+||| Extend a world with a single new variable by filling a free spot
 ||| How do you enforce more about this?
 public export
 record Extension (a : A) (w : World) where
@@ -46,19 +60,34 @@ record Extension (a : A) (w : World) where
   w' : World
   rho : w ~> w'
   var : Var a w'
+  free : Maybe (Free w')
 
-||| Extend a world by filling in a free spot
+||| Extend a world by filling in a free spot.
+||| We assume that we are filling bottom.
 extend : {a : A} -> (w : World) -> Free w -> Extension a w
 extend (Node l Nothing r) Nil =
-  Extend (Node l (Just a) r) (cotuple winl winr) Nil
+  --  Filling bottom up, so this is the last free spot.
+  Extend (Node l (Just a) r) (cotuple winl winr) Nil Nothing
 extend (Node l d r) (L pos) =
-  let lext = extend {a} l pos
-      rho' = bimap {w1 = l, w1' = lext.w'} lext.rho id
-  in Extend (Node (lext.w') d r) rho' (L lext.var)
+  case (extend {a} l pos) of
+    Extend l' rho var mf => case mf of
+      Nothing =>
+        case (findFree r) of
+          Nothing =>
+            let mf' = case d of {Just _ => Nothing; Nothing => Just Nil} in
+            Extend (Node l' d r) (bimap rho id) (L var) mf'
+          Just f => Extend (Node l' d r) (bimap rho id) (L var) (Just (R f))
+      Just f => Extend (Node l' d r) (bimap rho id) (L var) (Just (L f))
 extend (Node l d r) (R pos) =
-  let rext = extend {a} r pos
-      rho' = bimap {w2 = r, w2' = rext.w'} id rext.rho
-  in Extend (Node l d (rext.w')) rho' (R rext.var)
+  case (extend {a} r pos) of
+    Extend r' rho var mf => case mf of
+      Nothing =>
+        case (findFree l) of
+          Nothing =>
+            let mf' = case d of {Just _ => Nothing; Nothing => Just Nil} in
+            Extend (Node l d r') (bimap id rho) (R var) mf'
+          Just f => Extend (Node l d r') (bimap id rho) (R var) (Just (L f))
+      Just f => Extend (Node l d r') (bimap id rho) (R var) (Just (R f))
 
 extendVar : {a : A} -> {w : World} ->
   Var a w -> (ext : Extension b w) -> Var a ext.w'
@@ -215,59 +244,73 @@ allocComponent : {a : A} ->
   (w : World) -> Free w -> StateIn w -> ValueOf a ->
   (ext : Extension a w ** StateIn ext.w')
 allocComponent (Node l Nothing r) [] (Node sl () sr) v =
-  (Extend (Node l (Just a) r) (cotuple winl winr) Nil ** Node sl v sr)
+  (Extend (Node l (Just a) r) (cotuple winl winr) Nil Nothing ** Node sl v sr)
 allocComponent (Node l d r) (L pos) (Node sl ms sr) v =
   case (allocComponent l pos sl v) of
-    (Extend l' rhol varl ** sl') =>
-      (Extend (Node l' d r) (bimap rhol id) (L varl) ** Node sl' ms sr)
+    (Extend l' rho var mf ** sl') =>
+      let ss' = Node sl' ms sr in
+      case mf of
+        Nothing =>
+          case (findFree r) of
+            Nothing =>
+              let mf' = case d of {Just _ => Nothing; Nothing => Just Nil} in
+              (Extend (Node l' d r) (bimap rho id) (L var) mf' ** ss')
+            Just f =>
+              (Extend (Node l' d r) (bimap rho id) (L var) (Just (R f)) ** ss')
+        Just f =>
+          (Extend (Node l' d r) (bimap rho id) (L var) (Just (L f)) ** ss')
 allocComponent (Node l d r) (R pos) (Node sl ms sr) v =
   case (allocComponent r pos sr v) of
-    (Extend r' rhor varr ** sr') =>
-      (Extend (Node l d r') (bimap id rhor) (R varr) ** Node sl ms sr')
+    (Extend r' rho var mf ** sr') =>
+      let ss' = Node sl ms sr' in
+      case mf of
+        Nothing =>
+          case (findFree l) of
+            Nothing =>
+              let mf' = case d of {Just _ => Nothing; Nothing => Just Nil} in
+              (Extend (Node l d r') (bimap id rho) (R var) mf' ** ss')
+            Just f =>
+              (Extend (Node l d r') (bimap id rho) (R var) (Just (L f)) ** ss')
+        Just f =>
+          (Extend (Node l d r') (bimap id rho) (R var) (Just (R f)) ** ss')
 
 -- Viewed as in Inj-presheaf, free Inj-LS algebra on the presheaf which is
 -- constantly t
 Heap : Type -> Family
-Heap t w = (Maybe (Free w), StateIn w) -> Pair t (StateIn w)
+Heap t w = (Free w, StateIn w) -> Pair t (w' : World ** (w ~> w', StateIn w'))
 
-{-
 pureHeap : {w : World} -> t -> Heap t w
-pureHeap t = \x => (t, HideStateIn w id x [])
+pureHeap {w} t = \(_, x) => (t, (w ** (id, x)))
 
-runHeap : Heap t w -> StateIn w -> Pair t (StateIn w)
-runHeap h ss = h ss
+runHeap : Heap t w -> (Free w, StateIn w) ->
+  Pair t (w' : World ** (w ~> w', StateIn w'))
+runHeap h fss = h fss
 
 readHeapOp : FamProd [< TypeOf IntCell -% Heap t, Var IntCell] -|> Heap t
-readHeapOp w [< cont, var] ss =
+readHeapOp w [< cont, var] fss@(_, ss) =
   let val = getComponent var ss in
-  eval w [< cont, val] ss
+  eval w [< cont, val] fss
 
 writeHeapOp :
   FamProd [< const () -% Heap t, FamProd [< Var IntCell, TypeOf IntCell]]
   -|> Heap t
-writeHeapOp w [< cont, [< var, val]] ss =
+writeHeapOp w [< cont, [< var, val]] (f, ss) =
   let ss' = setComponent var ss val in
-  eval w [< cont, ()] ss'
--}
+  eval w [< cont, ()] (f, ss')
+
+{-
 newHeapOp :
   FamProd [< Env (Single IntCell) -% Heap t, TypeOf IntCell] -|> Heap t
-newHeapOp q [< cont, val] (Nothing, ss) =
-  let combined = joinAllM (Node {mx = Just IntCell} Leaf val Leaf) () ss
-      (t, ss') = cont
-        (Node (Node Leaf (Just P) Leaf) Nothing q)
-        [< inr, inl]
-        (Just Nil, combined)
-  in (t, snd . snd $ splitAllM ss')
-newHeapOp q [< cont, val] (Just f, ss) =
+newHeapOp q [< cont, val] (f, ss) =
   case (allocComponent {a = IntCell} q f ss val) of
     (Extend w' rho var ** ss') =>
-      let shed = cont w' [< rho, toRen var] (Nothing, ss')
+      let shed = cont w' [< rho, toRen var] (?f, ss')
       in ?res
 
   -- let combined = joinAll (Node Leaf val Leaf) ss
   --     (t, ss') = cont combined
   -- in (t, snd (splitAll ss'))
-{-
+
 -- The action of the injection n -> n + 1 of Inj on the heap
 extendHeap : Heap t -|> (Single IntCell).shift (Heap t)
 extendHeap w h sv =
