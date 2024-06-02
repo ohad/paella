@@ -37,10 +37,10 @@ record OpSig where
   Args  : Family
   Arity : Family
 
-||| A signature is a list of operation signatures
+||| A signature is a family of operation signatures
 public export
 Signature : Type
-Signature = List OpSig
+Signature = OpSig -> Type
 
 ||| The free monad on families of algebraic operations
 public export
@@ -48,9 +48,9 @@ data (.Free) : Signature -> Family -> Family where
   ||| Embeds the family into the monad
   Return : f -|> sig.Free f
   ||| Embeds an operation into the monad
-  Op : {op : OpSig} -> {f : Family} ->
-    op `Elem` sig ->
-    FamProd [< op.Args , op.Arity -% sig.Free f]
+  Op : {opSig : OpSig} -> {f : Family} ->
+    (op : sig opSig) ->
+    FamProd [< opSig.Args , opSig.Arity -% sig.Free f]
     -|> sig.Free f
 
 ||| Evidence that the arguments and arity of an operation are presheaves
@@ -64,9 +64,10 @@ record BoxCoalgOpSig (op : OpSig) where
 ||| are presheaves
 public export
 BoxCoalgSignature : Signature -> Type
-BoxCoalgSignature sig = ForAll sig $ BoxCoalgOpSig
+BoxCoalgSignature sig = {opSig : OpSig} -> (op : sig opSig) ->
+  BoxCoalgOpSig opSig
 
-||| When the signature consists of presheaves and the family is a presheaf, 
+||| When the signature consists of presheaves and the family is a presheaf,
 ||| then the free monad is also a presheaf
 export
 BoxCoalgFree : {sig : Signature} -> {f : Family} ->
@@ -74,25 +75,25 @@ BoxCoalgFree : {sig : Signature} -> {f : Family} ->
 BoxCoalgFree sigCoalg fCoalg = MkBoxCoalg $ \w, term, w', rho =>
   case term of
     Return w1 var => Return w' (fCoalg.map rho var)
-    Op pos w [< arg, cont] =>
-      Op pos w'
-        [< (indexAll pos sigCoalg).Args.map rho arg
+    Op op w [< arg, cont] =>
+      Op op w'
+        [< (sigCoalg op).Args.map rho arg
         ,  BoxCoalgExp .map rho cont
         ]
 
 ||| The definition of a family `f` being an algebra over a signature `sig`
 public export
 (.AlgebraOver) : Signature -> Family -> Type
-sig.AlgebraOver f = ForAll sig $ \op =>
-  (op.Arity -% f) -|> (op.Args -% f)
+sig.AlgebraOver f = {opSig : OpSig} -> (op : sig opSig) ->
+  (opSig.Arity -% f) -|> (opSig.Args -% f)
 
 ||| Make an algebra over `f` given the uncurried version of each operation
 export
 MkAlgebraOver : {sig : Signature} -> {f : Family} ->
-  (ForAll sig $ \op =>
-    (FamProd [< op.Arity -% f, op.Args] -|> f))
+  ({opSig : OpSig} -> (op : sig opSig) ->
+    FamProd [< opSig.Arity -% f, opSig.Args] -|> f)
   -> sig.AlgebraOver f
-MkAlgebraOver = mapPropertyWithRelevant (\op => BoxCoalgExp .curry)
+MkAlgebraOver ops op = BoxCoalgExp .curry (ops op)
 
 ||| Lift an operation interpretation into a context `gamma`
 export
@@ -110,11 +111,8 @@ liftAlg : {sig : Signature} -> {gamma, f : Family} ->
   (gammaCoalg : BoxCoalg gamma) =>
   sig.AlgebraOver f ->
   sig.AlgebraOver (gamma -% f)
-liftAlg @{sigCoalg} alg =
-  zipPropertyWithRelevant (\opSig, opCoalg, op =>
-    liftOp @{opCoalg.Args} @{gammaCoalg} op
-  )
-  sigCoalg alg
+liftAlg @{sigCoalg} alg {opSig} op =
+  liftOp @{(sigCoalg op).Args} @{gammaCoalg} (alg op)
 
 ||| A curried version of the operation for the free monad
 export
@@ -122,16 +120,16 @@ curryOp :
   (sig : Signature) ->
   (f : Family) ->
   BoxCoalg f ->
-  (op : OpSig) ->
-  op `Elem` sig ->
-  (op.Arity -% sig.Free f) -|> (op.Args -% sig.Free f)
-curryOp sig f coalg op pos = BoxCoalgExp .curry (Op pos . swap)
+  {opSig : OpSig} ->
+  (op : sig opSig) ->
+  (opSig.Arity -% sig.Free f) -|> (opSig.Args -% sig.Free f)
+curryOp sig f coalg op = BoxCoalgExp .curry (Op op . swap)
 
 ||| The free monad over a signature is an algera for it when `f` is a presheaf
 export
 TermAlgebra : {sig : Signature} ->
   (f : Family) -> BoxCoalg f -> sig.AlgebraOver (sig.Free f)
-TermAlgebra {sig} f coalg = tabulateElem sig $ curryOp sig f coalg
+TermAlgebra {sig} f coalg = curryOp sig f coalg
 
 ||| The unit of the monad structure of `Free`
 export
@@ -144,10 +142,10 @@ export
 (.fold) : {sig : Signature} -> {f, g : Family} ->
   sig.AlgebraOver g -> (f -|> g) -> (sig.Free f -|> g)
 alg.fold env w (Return w x  ) = env w x
-alg.fold env w (Op {op} pos .(w) [< arg, k]) =
+alg.fold env w (Op {opSig} op .(w) [< arg, k]) =
   let fold = alg.fold env
-      g_op = indexAll pos alg w
-      folded = g_op (expMap {h = op.Arity} fold w k)
+      g_op = alg op w
+      folded = g_op (expMap {h = opSig.Arity} fold w k)
   in eval w [< folded, arg]
 
 ||| The Kleisli extension for `sig.Free`
@@ -179,6 +177,7 @@ gCoalg.extendStrength alpha =
       (fCoalg.curry $ alpha . swap)
   ) . swap
 
+export
 infixr 1 >>==
 
 ||| Kleisli bind for `sig.Free` in context
@@ -201,3 +200,22 @@ export
   ( gCoalg.extendStrength {sigCoalg} {fCoalg} {gammaCoalg}
       (\w, [< env, x] => k w (env :< x))
   ) . tuple [< id, xs]
+
+------- Generic effects ----------
+
+-- Can derive from previous but can cut out hassle
+public export
+abst : (f -|> g) -> (f -% g).elem
+abst alpha w' w'' [< rho, x] = alpha w'' x
+
+public export
+unabst : (f -% g).elem -> (f -|> g)
+unabst alpha w' x = alpha w' w' [< id, x]
+
+public export
+genOpType : Signature -> OpSig -> Type
+genOpType sig opSig = opSig.Args -|> sig.Free opSig.Arity
+
+public export
+genOp : {sig : Signature} -> {opSig : OpSig} -> (op : sig opSig) -> genOpType sig opSig
+genOp op w args = Op op w [< args , abst pure w]
