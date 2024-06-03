@@ -1,8 +1,11 @@
 module Forking
 
 import Paella
+import Control.Monad.Trans
 import Control.Monad.Maybe
 import Control.Monad.Error.Interface
+import Data.IORef
+import Data.SnocList.Quantifiers
 
 public export
 Name : A
@@ -108,6 +111,10 @@ fromFunc {w = (sx :< x)} f =
 mapTIDs : {w, w' : World} -> (w ~> w') -> TIDs w' -> TIDs w
 mapTIDs rho tids = fromFunc (\a => toFunc tids a . rho a)
 
+getTID : {w : World} -> Var a w -> TIDs w -> ValueOf a
+getTID Here (_ :< tid) = tid
+getTID (There pos) (tids :< tid) = getTID pos tids
+
 export
 MIO : Family
 MIO w = TIDs w -> MaybeT IO ()
@@ -120,17 +127,29 @@ BoxCoalgMIO = MkBoxCoalg $ \w, mio, w', rho => mio . mapTIDs rho
 forkMIO : FamProd [< FamSum [< Var Name, const ()] -% MIO, const ()] -|> MIO
 forkMIO w [< cont, ()] =
   let [< parent, child] = splitExp w cont in
-  ?res
+  \tids => MkMaybeT $ do
+    -- See if child errors out
+    errored <- newIORef False
+    let childM = runMaybeT $ do
+      -- Catch the childs error and write to the IO ref
+      catchError (child w [< id, ()] tids) $ \_ =>
+        writeIORef errored True
+    -- Fork the adapted child
+    tid <- Prelude.IO.fork (map (\x => ()) $ childM)
+    -- Run the parent in the extended world
+    runMaybeT $
+      parent (w :< P) [< inl {w2 = [< P]}, Paella.Worlds.Here] (tids :< tid)
 
 waitMIO : FamProd [< const () -% MIO, Var Name] -|> MIO
+waitMIO w [< cont, n] = \tids => do
+  lift $ threadWait (getTID n tids)
+  cont w [< id, ()] tids
 
 stopMIO : FamProd [< const Void -% MIO, const ()] -|> MIO
 stopMIO w [< _, ()] _ = throwError ()
 
 printMIO : FamProd [< const () -% MIO, const String] -|> MIO
-printMIO w [< cont, s] tids = do
-  print s
-  cont w [< id, ()] tids
+printMIO w [< cont, s] tids = print s >> cont w [< id, ()] tids
 
 MIOAlgebra : FSig .AlgebraOver MIO
 MIOAlgebra = MkAlgebraOver {sig = FSig} $ \case
@@ -138,3 +157,9 @@ MIOAlgebra = MkAlgebraOver {sig = FSig} $ \case
   Wait => waitMIO
   Stop => stopMIO
   Print => printMIO
+
+handle : FSig .Free (const Unit) -|> MIO
+handle w comp = MIOAlgebra .fold (\w, (), tids => pure ()) w comp
+
+Ex : IO (Maybe Unit)
+Ex = runMaybeT $ handle [< ] (axiom2 [<] [<]) [<]
