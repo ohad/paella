@@ -24,28 +24,18 @@ BoxCoalgA P = BoxCoalgProd $ [< BoxCoalgConst, BoxCoalgVar]
 public export
 ||| Type of reading an A-cell
 readType : A -> OpSig
-readType a = MkOpSig
-  { Args = Var a
-  , Arity = TypeOf a
-  }
+readType a = Var a ~|> TypeOf a
 
 public export
 ||| Type of writing an a
 ||| w_0 : [a, []]
 writeType : A -> OpSig
-writeType a = MkOpSig
-  { Args = FamProd [< Var a, TypeOf a]
-  , Arity = const ()
-  }
-
+writeType a = FamProd [< Var a, TypeOf a] ~|> const ()
 
 public export
 ||| Allocate a fresh cell storing an a value
 newType : A -> OpSig
-newType a = MkOpSig
-  { Args = [< a].shift (TypeOf a)
-  , Arity = Var a
-  }
+newType a = [< a].shift (TypeOf a) ~|> Var a
 
 public export
 data LSSig : Signature where

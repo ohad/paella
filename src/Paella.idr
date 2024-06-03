@@ -29,11 +29,14 @@ import public Paella.Presheaves.Sum
 -- Free monad for algebraic effects in presheaves --
 ----------------------------------------------------
 
+public export
+infix 1 ~|>
+
 ||| Signature for a single operation, which takes an argument and has a
 ||| branching arity
 public export
 record OpSig where
-  constructor MkOpSig
+  constructor (~|>)
   Args  : Family
   Arity : Family
 

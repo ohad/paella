@@ -37,33 +37,21 @@ BoxCoalgA P = BoxCoalgConst
 ||| Type of reading an A-cell
 public export
 readType : A -> OpSig
-readType a = MkOpSig
-  { Args = Var a
-  , Arity = TypeOf a
-  }
+readType a = Var a ~|> TypeOf a
 
 ||| Type of writing an A-cell
 writeType : A -> OpSig
-writeType a = MkOpSig
-  { Args = FamProd [< Var a, TypeOf a]
-  , Arity = const ()
-  }
+writeType a = FamProd [< Var a, TypeOf a] ~|> const ()
 
 ||| Allocate a fresh cell storing an a value
 public export
 newType : A -> OpSig
-newType a = MkOpSig
-  { Args = TypeOf a
-  , Arity = Var a
-  }
+newType a = TypeOf a ~|> Var a
 
 ||| Type of equality testing:
 public export
 equalType : A -> OpSig
-equalType a = MkOpSig
-  { Args = FamProd [< Var a, Var a]
-  , Arity = const Bool
-  }
+equalType a = FamProd [< Var a, Var a] ~|> const Bool
 
 public export
 data LSSig : Signature where
