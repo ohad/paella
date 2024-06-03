@@ -26,6 +26,11 @@ BoxCoalgSum : {sf : SnocList Family} ->
 BoxCoalgSum salg =  MkBoxCoalg $ \w, sx, w', rho =>
   applyAtAny (\f, coalg => coalg.map rho) salg sx
 
+export
+caseSplit : (l -|> f) -> (r -|> f) -> (FamSum [< l, r] -|> f)
+caseSplit left right w (Here x) = right w x
+caseSplit left right w (There (Here x)) = left w x
+
 -- Exponentiating by a sum of representables, as a product
 
 infixl 7 ^
