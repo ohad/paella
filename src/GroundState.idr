@@ -412,7 +412,7 @@ handle w comp = LocHeapAlgebra .fold (\w, _ => pureLocHeap ()) w comp
 TwoIntCell : World
 TwoIntCell = (Single IntCell ++ Single IntCell)
 
-Ex : (Unit, (w' : World ** (? ~> w', StateIn w')))
+Ex : (Unit, (w' : World ** (TwoIntCell ~> w', StateIn w')))
 Ex = handle TwoIntCell (
     GroundState.swap TwoIntCell [< L Nil, R Nil]
   ) TwoIntCell id (Nil, (Node (Node Leaf 1 Leaf) () (Node Leaf 2 Leaf)))
