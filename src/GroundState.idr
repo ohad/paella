@@ -18,21 +18,21 @@ joinAll {sx = _ :< _} sa (sb :< b) = joinAll sa sb :< b
 
 public export
 IntCell : A
-IntCell = P
+IntCell = Ptr
 
 public export
 ValueOf : A -> Type
-ValueOf P = Int
+ValueOf Ptr = Int
 
 public export
 TypeOf : A -> Family
-TypeOf P = const (ValueOf P)
+TypeOf Ptr = const (ValueOf Ptr)
 
 -- Should propagate structure more nicely
 %hint
 export
 BoxCoalgA : (a : A) -> BoxCoalg $ TypeOf a
-BoxCoalgA P = BoxCoalgConst
+BoxCoalgA Ptr = BoxCoalgConst
 
 ||| Type of reading an A-cell
 public export
@@ -139,7 +139,7 @@ newHeapOp :
 newHeapOp w [< cont, val] ss =
   let combined = joinAll {sy = [< IntCell]} [< val] ss
       (t, ss') = cont combined
-  in (t, snd (splitAll {sy = [<P]} ss'))
+  in (t, snd (splitAll {sy = [< Ptr]} ss'))
 
 -- The action of the injection n -> n + 1 of Inj on the heap
 extendHeap : Heap t -|> [< IntCell].shift (Heap t)
@@ -181,8 +181,8 @@ writeLocHeapOp w [< cont, [< var, val]] w' rho =
 newLocHeapOp : {t : Type} ->
   FamProd [< Var IntCell -% LocHeap t, TypeOf IntCell] -|> LocHeap t
 newLocHeapOp w [< cont, val] w' rho =
-  let rho' = bimap {w1 = [< P], w1' = [< P]} id rho
-      cont' = cont ([< P] ++ w) [< inr, swapRen P Here] ([< P] ++ w') rho'
+  let rho' = bimap {w1 = [< Ptr], w1' = [< Ptr]} id rho
+      cont' = cont ([< Ptr] ++ w) [< inr, swapRen Ptr Here] ([< Ptr] ++ w') rho'
   in newHeapOp w' [< cont', val]
 
 equalLocHeapOp : {t : Type} ->
@@ -229,6 +229,6 @@ handle w comp = LocHeapAlgebra .fold
   (\w, _ => pureLocHeap ()) w comp
 
 Ex : (Unit, StateIn [< IntCell, IntCell])
-Ex = handle [< P, P] (
-    GroundState.swap [< P, P] [< Here, There Here]
-  ) [< P, P] id [< 1, 2]
+Ex = handle [< Ptr, Ptr] (
+    GroundState.swap [< Ptr, Ptr] [< Here, There Here]
+  ) [< Ptr, Ptr] id [< 1, 2]

@@ -9,7 +9,7 @@ module Paella.Worlds
 ||| The type of available parameter types.
 ||| In the final development, we will abstract/parameterise over this type.
 public export
-data A = P
+data A = Ptr
 
 ||| A zero-th order context, (co)arities of operations are covariant presheaves
 ||| over worlds

@@ -7,19 +7,19 @@ infix 3 !!, ::=, ?!
 
 public export
 ConsCell : A
-ConsCell = P
+ConsCell = Ptr
 
 public export
 -- Postulate: each parameter has a type
 -- For now, just cons cells
 TypeOf : A -> Family
-TypeOf P = FamProd [< const String, Var ConsCell]
+TypeOf Ptr = FamProd [< const String, Var ConsCell]
 
 %hint
 public export
 BoxCoalgA : (a : A) -> BoxCoalg $ TypeOf a
 -- Should propagate structure more nicely
-BoxCoalgA P = BoxCoalgProd $ [< BoxCoalgConst, BoxCoalgVar]
+BoxCoalgA Ptr = BoxCoalgProd $ [< BoxCoalgConst, BoxCoalgVar]
 
 public export
 ||| Type of reading an A-cell
