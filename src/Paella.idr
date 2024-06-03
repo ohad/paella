@@ -151,6 +151,11 @@ alg.fold env w (Op {opSig} op .(w) [< arg, k]) =
       folded = g_op (expMap {h = opSig.Arity} fold w k)
   in eval w [< folded, arg]
 
+export
+(.fmap) : {sig : Signature} -> {f, g : Family} ->
+  BoxCoalg g -> (f -|> g) -> (sig.Free f -|> sig.Free g)
+alg.fmap {g} h = (TermAlgebra g alg).fold (pure . h)
+
 ||| The Kleisli extension for `sig.Free`
 export
 (.extend) :  {sig : Signature} -> {f,g : Family} ->

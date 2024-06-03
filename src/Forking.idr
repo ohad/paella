@@ -66,9 +66,15 @@ print : genOpType FSig PrintType
 print = genOp Print
 
 ignorePrint : Var Name -|> FSig .Free (const ())
-ignorePrint w _ = print w "Parent" 
+ignorePrint w _ = print w "Parent"
+
+constAbsurd : const Void -|> const ()
+constAbsurd _ x = ()
+
+stopUnit : const () -|> FSig .Free (const ())
+stopUnit = BoxCoalgConst .fmap constAbsurd . stop
 
 axiom2 : FamProd [< ] -|> FSig .Free (const ())
-axiom2 =                                  (\w, [< ] =>
-  fork _ ()                        ) >>== (\w, [< enu] =>
-  caseSplit ignorePrint pure _ enu )
+axiom2 =                                      (\w, [< ] =>
+  fork _ ()                            ) >>== (\w, [< enu] =>
+  caseSplit ignorePrint stopUnit _ enu )
