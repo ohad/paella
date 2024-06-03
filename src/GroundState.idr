@@ -52,6 +52,10 @@ findFree (Node l d r) =
             Just _ => Nothing
             Nothing => Just Nil
 
+depth : (w : World) -> Nat
+depth Leaf = 0
+depth (Node l _ r) = max (depth l) (depth r)
+
 ||| Extend a world with a single new variable by filling a free spot
 ||| How do you enforce more about this?
 public export
@@ -274,6 +278,15 @@ allocComponent (Node l d r) (R pos) (Node sl ms sr) v =
         Just f =>
           (Extend (Node l d r') (bimap id rho) (R var) (Just (R f)) ** ss')
 
+emptyState : Nat -> (w : World ** (Free w, StateIn w))
+emptyState 0 = (Node Leaf Nothing Leaf ** ([], Node Leaf () Leaf))
+emptyState (S n) =
+  let (e ** (f, ss)) = emptyState n
+  in (Node e Nothing e ** (L f, Node ss () ss))
+
+change : {f : Family} -> (Var IntCell -% f) -|> (Env (Single IntCell) -% f)
+change q g q' [< rho, invar] = g q' [<rho, invar P []]
+
 -- Viewed as in Inj-presheaf, free Inj-LS algebra on the presheaf which is
 -- constantly t
 Heap : Type -> Family
@@ -298,33 +311,34 @@ writeHeapOp w [< cont, [< var, val]] (f, ss) =
   let ss' = setComponent var ss val in
   eval w [< cont, ()] (f, ss')
 
-{-
 newHeapOp :
   FamProd [< Env (Single IntCell) -% Heap t, TypeOf IntCell] -|> Heap t
 newHeapOp q [< cont, val] (f, ss) =
   case (allocComponent {a = IntCell} q f ss val) of
-    (Extend w' rho var ** ss') =>
-      let shed = cont w' [< rho, toRen var] (?f, ss')
-      in ?res
+    (Extend q' rho var mf' ** ss') =>
+      case mf' of
+        Just f' =>
+          let (t, (q'' ** (rho', ss''))) = cont q' [< rho, toRen var] (f', ss')
+          in (t, (q'' ** (rho' . rho, ss'')))
+        Nothing =>
+          let d = depth q'
+              -- Off by one or something, whatever
+              (e ** (f', ess)) = emptyState d
+              (t, (q'' ** (rho', ss''))) = cont
+                (Node e Nothing q')
+                [< inr . rho, toRen (R var)]
+                (L f', Node ess () ss')
+          in
+          (t, (q'' ** (rho' . inr . rho, ss'')))
 
-  -- let combined = joinAll (Node Leaf val Leaf) ss
-  --     (t, ss') = cont combined
-  -- in (t, snd (splitAll ss'))
-
--- The action of the injection n -> n + 1 of Inj on the heap
-extendHeap : Heap t -|> (Single IntCell).shift (Heap t)
-extendHeap w h sv =
-  let (v', sv') = splitAll sv
-      (x, sv'') = h sv'
-  in (x, joinAll v' sv')
 
 -- Viewed as the right Kan extension of Heap along the inclusion Inj -> Fin
 LocHeap : Type -> Family
 LocHeap t w = (w' : World) -> (w ~> w') -> Heap t w'
 
 runLocHeap : (w' : World) -> (w ~> w') -> LocHeap t w ->
-  StateIn w' -> Pair t (StateIn w')
-runLocHeap w' rho h s = h w' rho s
+  (Free w', StateIn w') -> Pair t (w'' : World ** (w' ~> w'', StateIn w''))
+runLocHeap w' rho h (f, s) = h w' rho (f, s)
 
 extractHeap : LocHeap t -|> Heap t
 extractHeap w = runLocHeap w id
@@ -350,14 +364,9 @@ writeLocHeapOp w [< cont, [< var, val]] w' rho =
 
 newLocHeapOp : {t : Type} ->
   FamProd [< Var IntCell -% LocHeap t, TypeOf IntCell] -|> LocHeap t
-newLocHeapOp w [< cont, val] w' rho =
-  let rho' = bimap id rho
-      cont' = cont
-        (Single P ++ w)
-        [< inr, swapRen P (R Nil)]
-        (Single P ++ w')
-        rho'
-  in newHeapOp w' [< cont', val]
+newLocHeapOp q [< cont, val] q' rho =
+  let cont' = change q' (expMap extractHeap q' (BoxCoalgExp .map rho cont))
+  in newHeapOp q' [< cont', val]
 
 equalLocHeapOp : {t : Type} ->
   FamProd [< const Bool -% LocHeap t, FamProd [< Var IntCell, Var IntCell]]
@@ -403,8 +412,7 @@ handle w comp = LocHeapAlgebra .fold (\w, _ => pureLocHeap ()) w comp
 TwoIntCell : World
 TwoIntCell = (Single IntCell ++ Single IntCell)
 
-Ex : (Unit, StateIn TwoIntCell)
+Ex : (Unit, (w' : World ** (? ~> w', StateIn w')))
 Ex = handle TwoIntCell (
     GroundState.swap TwoIntCell [< L Nil, R Nil]
-  ) TwoIntCell id (Node (Node Leaf 1 Leaf) () (Node Leaf 2 Leaf))
--}
+  ) TwoIntCell id (Nil, (Node (Node Leaf 1 Leaf) () (Node Leaf 2 Leaf)))
