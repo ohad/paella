@@ -3,18 +3,19 @@ module GroundState
 import Paella
 
 Eq (Var a w) where
-  Here      == Here      = True
-  (There x) == (There y) = x == y
-  _         == _         = False
+  Nil   == Nil   = True
+  (L x) == (L y) = x == y
+  (R x) == (R y) = x == y
+  _     == _     = False
 
-splitAll : {sy, sx : SnocList _} -> All p (sy ++ sx) -> (All p sy, All p sx)
-splitAll {sx = [<]} sa = (sa, [<])
-splitAll {sx = _ :< _} (sa :< a) =
-  let (sb, sa') = splitAll sa in (sb, sa' :< a)
+Single : A -> World
+Single x = Node Leaf (Just x) Leaf
 
-joinAll : {sy, sx : SnocList _} -> All p sy -> All p sx -> All p (sy ++ sx)
-joinAll {sx = [<]} sa [<] = sa
-joinAll {sx = _ :< _} sa (sb :< b) = joinAll sa sb :< b
+splitAll : {tx, ty : Tree _} -> All p (tx ++ ty) -> (All p tx, All p ty)
+splitAll (Node l () r) = (l, r)
+
+joinAll : {tx, ty : Tree _} -> All p tx -> All p ty -> All p (tx ++ ty)
+joinAll ta tb = Node ta () tb
 
 public export
 IntCell : A
@@ -116,10 +117,10 @@ write : FamProd [< Var IntCell, TypeOf IntCell] -|> LSSig .Free (const ())
 write w locval = Op (LSSig ?! 1) w [< locval, abst pure w]
 
 export
-new : [< IntCell].shiftLeft (TypeOf IntCell) -|> LSSig .Free (Var IntCell)
+new : (Single IntCell).shiftLeft (TypeOf IntCell) -|> LSSig .Free (Var IntCell)
 new w val =
   -- move new location to the bottom of the heap
-  let val' = (BoxCoalgA IntCell).map (swapRen {w1 = w, w2 = [< IntCell]}) val
+  let val' = (BoxCoalgA IntCell).map (swapRen {l = w, r = Single IntCell}) val
   in Op (LSSig ?! 2) w [< val', abst pure w]
 
 equal : FamProd [< Var IntCell, Var IntCell] -|> LSSig .Free (const Bool)
@@ -129,12 +130,14 @@ StateIn : Family
 StateIn w = ForAll w ValueOf
 
 getComponent : Var a w -> StateIn w -> ValueOf a
-getComponent Here (_ :< s) = s
-getComponent (There pos) (ss :< _) = getComponent pos ss
+getComponent []      (Node _ x _) = x
+getComponent (L pos) (Node l _ _) = getComponent pos l
+getComponent (R pos) (Node _ _ r) = getComponent pos r
 
 setComponent : Var a w -> StateIn w -> ValueOf a -> StateIn w
-setComponent Here (ss :< _) s' = ss :< s'
-setComponent (There pos) (ss :< s) s' = setComponent pos ss s' :< s
+setComponent []      (Node l _ r) y = Node l y r
+setComponent (L pos) (Node l x r) y = Node (setComponent pos l y) x r
+setComponent (R pos) (Node l x r) y = Node l x (setComponent pos r y)
 
 -- Viewed as in Inj-presheaf, free Inj-LS algebra on the presheaf which is
 -- constantly t
@@ -160,16 +163,16 @@ writeHeapOp w [< cont, [< var, val]] ss =
   eval w [< cont, ()] ss'
 
 newHeapOp :
-  FamProd [< [< IntCell].shift (Heap t), TypeOf IntCell] -|> Heap t
+  FamProd [< (Single IntCell).shift (Heap t), TypeOf IntCell] -|> Heap t
 newHeapOp w [< cont, val] ss =
-  let combined = joinAll {sy = [< IntCell]} [< val] ss
+  let combined = joinAll (Node Leaf val Leaf) ss
       (t, ss') = cont combined
-  in (t, snd (splitAll {sy = [<P]} ss'))
+  in (t, snd (splitAll ss'))
 
 -- The action of the injection n -> n + 1 of Inj on the heap
-extendHeap : Heap t -|> [< IntCell].shift (Heap t)
+extendHeap : Heap t -|> (Single IntCell).shift (Heap t)
 extendHeap w h sv =
-  let (v', sv') = splitAll {sy = [< IntCell]} sv
+  let (v', sv') = splitAll sv
       (x, sv'') = h sv'
   in (x, joinAll v' sv')
 
@@ -206,8 +209,12 @@ writeLocHeapOp w [< cont, [< var, val]] w' rho =
 newLocHeapOp : {t : Type} ->
   FamProd [< Var IntCell -% LocHeap t, TypeOf IntCell] -|> LocHeap t
 newLocHeapOp w [< cont, val] w' rho =
-  let rho' = bimap {w1 = [< P], w1' = [< P]} id rho
-      cont' = cont ([< P] ++ w) [< inr, swapRen P Here] ([< P] ++ w') rho'
+  let rho' = bimap id rho
+      cont' = cont
+        (Single P ++ w)
+        [< inr, swapRen P (R Nil)]
+        (Single P ++ w')
+        rho'
   in newHeapOp w' [< cont', val]
 
 equalLocHeapOp : {t : Type} ->
@@ -235,23 +242,26 @@ pureLocHeap t w rho = pureHeap t
 -- l1 := !l2
 readWrite : FamProd [< Var IntCell, Var IntCell] -|> LSSig .Free (const Unit)
 readWrite =
-                             (\w, [< l1, l2]       =>
-  read _ l2           ) >>== (\w, [< l1, l2, val ] =>
+                             (\w, [< l1, l2]      =>
+  read _ l2           ) >>== (\w, [< l1, l2, val] =>
   write _ [< l1, val] )
 
 -- swap value of two locations with temp location
 swap : FamProd [< Var IntCell, Var IntCell] -|> LSSig .Free (const Unit)
 swap =
-                                (\w, [< l1, l2]              =>
-  new _ 0                ) >>== (\w, [< l1, l2, lt]          =>
-  readWrite _ [< lt, l1] ) >>== (\w, [< l1, l2, lt, () ]     =>
-  readWrite _ [< l1, l2] ) >>== (\w, [< l1, l2, lt, (), () ] =>
+                                (\w, [< l1, l2]             =>
+  new _ 0                ) >>== (\w, [< l1, l2, lt]         =>
+  readWrite _ [< lt, l1] ) >>== (\w, [< l1, l2, lt, ()]     =>
+  readWrite _ [< l1, l2] ) >>== (\w, [< l1, l2, lt, (), ()] =>
   readWrite _ [< l2, lt] )
 
 handle : LSSig .Free (const Unit) -|> LocHeap Unit
 handle w comp = LocHeapAlgebra .fold (\w, _ => pureLocHeap ()) w comp
 
-Ex : (Unit, StateIn [< IntCell, IntCell])
-Ex = handle [< P, P] (
-    GroundState.swap [< P, P] [< Here, There Here]
-  ) [< P, P] id [< 1, 2]
+TwoIntCell : World
+TwoIntCell = (Single IntCell ++ Single IntCell)
+
+Ex : (Unit, StateIn TwoIntCell)
+Ex = handle TwoIntCell (
+    GroundState.swap TwoIntCell [< L Nil, R Nil]
+  ) TwoIntCell id (Node (Node Leaf 1 Leaf) () (Node Leaf 2 Leaf))
