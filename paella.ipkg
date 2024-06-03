@@ -35,10 +35,10 @@ modules =
   Forking
 
 -- main file (i.e. file to load at REPL)
--- main =
+main = Forking
 
 -- name of executable
--- executable =
+executable = forking
 -- opts =
 sourcedir = "src"
 -- builddir =

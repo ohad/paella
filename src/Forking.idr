@@ -161,5 +161,5 @@ MIOAlgebra = MkAlgebraOver {sig = FSig} $ \case
 handle : FSig .Free (const Unit) -|> MIO
 handle w comp = MIOAlgebra .fold (\w, (), tids => pure ()) w comp
 
-Ex : IO (Maybe Unit)
-Ex = runMaybeT $ handle [< ] (axiom2 [<] [<]) [<]
+main : IO (Maybe Unit)
+main = runMaybeT $ handle [< ] (axiom2 [<] [<]) [<]
