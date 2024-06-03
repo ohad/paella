@@ -2,6 +2,7 @@ module LocalState
 
 import Paella
 
+export
 infix 3 !!, ::=, ?!
 
 public export
@@ -23,88 +24,54 @@ BoxCoalgA P = BoxCoalgProd $ [< BoxCoalgConst, BoxCoalgVar]
 public export
 ||| Type of reading an A-cell
 readType : A -> OpSig
-readType a = MkOpSig
-  { Args = Var a
-  , Arity = TypeOf a
-  }
+readType a = Var a ~|> TypeOf a
 
 public export
 ||| Type of writing an a
 ||| w_0 : [a, []]
 writeType : A -> OpSig
-writeType a = MkOpSig
-  { Args = FamProd [< Var a, TypeOf a]
-  , Arity = const ()
-  }
-
+writeType a = FamProd [< Var a, TypeOf a] ~|> const ()
 
 public export
 ||| Allocate a fresh cell storing an a value
 newType : A -> OpSig
-newType a = MkOpSig
-  { Args = [< a].shift (TypeOf a)
-  , Arity = Var a
-  }
+newType a = [< a].shift (TypeOf a) ~|> Var a
 
 public export
-LSSig : Signature
-LSSig = [
-  readType ConsCell,
-  writeType ConsCell,
-  newType ConsCell
-]
+data LSSig : Signature where
+  Read  : LSSig (readType  ConsCell)
+  Write : LSSig (writeType ConsCell)
+  New   : LSSig (newType   ConsCell)
 
 %hint
 public export
 LSSigFunc : BoxCoalgSignature LSSig
-LSSigFunc =
-  [ -- read
-    MkFunOpSig { Arity = BoxCoalgProd [< BoxCoalgConst, BoxCoalgVar]
-               , Args = BoxCoalgVar
-               }
-  , -- write
-    MkFunOpSig { Arity = BoxCoalgConst
-               , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgA ConsCell]
-               }
-  , -- new
-    MkFunOpSig { Arity = BoxCoalgVar
-               , Args = [< ConsCell].shiftCoalg (BoxCoalgA ConsCell)
-               }
-  ]
-
--- Probably better to define the generic operations generically
--- and instantiate to these
-
--- Can derive from previous but can cut out hassle
-public export
-abst :
-  (f -|> g) ->
-  (f -% g).elem
-abst f w w' [< rho , x] = f w' x
+LSSigFunc Read = MkFunOpSig
+  { Arity = BoxCoalgProd [< BoxCoalgConst, BoxCoalgVar]
+  , Args = BoxCoalgVar
+  }
+LSSigFunc Write = MkFunOpSig
+  { Arity = BoxCoalgConst
+  , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgA ConsCell]
+  }
+LSSigFunc New = MkFunOpSig
+  { Arity = BoxCoalgVar
+  , Args = [< ConsCell].shiftCoalg (BoxCoalgA ConsCell)
+  }
 
 public export
-read : Var ConsCell -|> LSSig .Free (TypeOf ConsCell)
-read w loc =
-  Op (LSSig ?! 0) w
-     [< loc , abst pure w]
+read : genOpType LSSig (readType ConsCell)
+read = genOp Read
 
 public export
-write : FamProd [< Var ConsCell , TypeOf ConsCell] -|>
-          LSSig .Free (const ())
-write w locval =
-  Op (LSSig ?! 1) w
-     [< locval , abst pure w]
-
+write : genOpType LSSig (writeType ConsCell)
+write = genOp Write
 
 public export
-new : FamProd [< [<ConsCell].shiftLeft (TypeOf ConsCell)] -|>
-      LSSig .Free (Var ConsCell)
-new w [<val] =
-  -- move new location to the bottom of the heap
-  let val' = (BoxCoalgA ConsCell).map
-        (swapRen {w1 = w, w2 = [<ConsCell]}) val
-  in Op (LSSig ?! 2) w
-    [< val' , abst pure w]
+new : genOpType LSSig (newType ConsCell)
+new = genOp New
+
+---- The heap handler ----------------
 
 public export
 Heaplet : (shape : World) -> Family
@@ -247,18 +214,18 @@ public export
 -- Heap's LSAlgebra structure
 LSalg : {f : Family} -> {coalg : BoxCoalg f} ->
   LSSig .AlgebraOver (LSHandlerCarrier f)
-LSalg = MkAlgebraOver
-  [ -- readType
-     \roots, [< kont, loc], shape, [< rho, heap] =>
-       let result = heap !! (rho _ loc)
-       in eval shape [< kont shape [< rho , result] , heap]
-  , -- writeType
+LSalg = MkAlgebraOver {sig = LSSig} $ \case
+  Read  =>
+    \roots, [< kont, loc], shape, [< rho, heap] =>
+    let result = heap !! (rho _ loc)
+    in eval shape [< kont shape [< rho , result] , heap]
+  Write =>
     \roots, [< kont, [<loc, newval]], shape, [< rho, heap] =>
-       let newHeap = heap.update
-                     (rho _ loc ::=
-                        (BoxCoalgA ConsCell).map rho newval)
-       in eval shape [< kont shape [< rho , ()] , newHeap]
-  , -- new
+    let newHeap = heap.update
+                  (rho _ loc ::=
+                     (BoxCoalgA ConsCell).map rho newval)
+    in eval shape [< kont shape [< rho , ()] , newHeap]
+  New   =>
     \roots, [< kont, newval], shape, [< rho, heap] =>
       let newheap : Heap ([< ConsCell] ++ shape)
                   := extendHeap {w = [< ConsCell]} shape
@@ -277,7 +244,6 @@ LSalg = MkAlgebraOver
                           ([< ConsCell] ++ shape)
                           ([< id, newheap])
       in hide result
-  ]
 
 public export
 handle :

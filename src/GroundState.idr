@@ -37,94 +37,69 @@ BoxCoalgA P = BoxCoalgConst
 ||| Type of reading an A-cell
 public export
 readType : A -> OpSig
-readType a = MkOpSig
-  { Args = Var a
-  , Arity = TypeOf a
-  }
+readType a = Var a ~|> TypeOf a
 
 ||| Type of writing an A-cell
 writeType : A -> OpSig
-writeType a = MkOpSig
-  { Args = FamProd [< Var a, TypeOf a]
-  , Arity = const ()
-  }
+writeType a = FamProd [< Var a, TypeOf a] ~|> const ()
 
 ||| Allocate a fresh cell storing an a value
 public export
 newType : A -> OpSig
-newType a = MkOpSig
-  { Args = TypeOf a
-  , Arity = Var a
-  }
+newType a = TypeOf a ~|> Var a
 
 ||| Type of equality testing:
 public export
 equalType : A -> OpSig
-equalType a = MkOpSig
-  { Args = FamProd [< Var a, Var a]
-  , Arity = const Bool
-  }
+equalType a = FamProd [< Var a, Var a] ~|> const Bool
 
 public export
-LSSig : Signature
-LSSig = [
-  readType IntCell,
-  writeType IntCell,
-  newType IntCell,
-  equalType IntCell
-]
+data LSSig : Signature where
+  Read  : LSSig (readType IntCell)
+  Write : LSSig (writeType IntCell)
+  New   : LSSig (newType IntCell)
+  Equal : LSSig (equalType IntCell)
+
 
 %hint
 public export
 LSSigFunc : BoxCoalgSignature LSSig
-LSSigFunc =
-  [ -- read
-    MkFunOpSig { Arity = BoxCoalgA IntCell
-               , Args = BoxCoalgVar
-               }
-  , -- write
-    MkFunOpSig { Arity = BoxCoalgConst
-               , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgA IntCell]
-               }
-  , -- new
-    MkFunOpSig { Arity = BoxCoalgVar
-               , Args = BoxCoalgA IntCell
-               }
-  , -- equal
-    MkFunOpSig { Arity = BoxCoalgConst
-               , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgVar]
-               }
-  ]
-
-
--- Probably better to define the generic operations generically
--- and instantiate to these
-
--- Can derive from previous but can cut out hassle
-abst : (f -|> g) -> (f -% g).elem
-abst alpha w' w'' [< rho, x] = alpha w'' x
-
-unabst : (f -% g).elem -> (f -|> g)
-unabst alpha w' x = alpha w' w' [< id, x]
+LSSigFunc Read  =  MkFunOpSig
+                { Arity = BoxCoalgA IntCell
+                , Args  = BoxCoalgVar
+                }
+LSSigFunc Write = MkFunOpSig
+                { Arity = BoxCoalgConst
+                , Args = BoxCoalgProd
+                      [< BoxCoalgVar
+                       , BoxCoalgA IntCell]
+                }
+LSSigFunc New   = MkFunOpSig
+                { Arity = BoxCoalgVar
+                , Args = BoxCoalgA IntCell
+                }
+LSSigFunc Equal = MkFunOpSig
+                { Arity = BoxCoalgConst
+                , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgVar]
+                }
 
 export
-read : Var IntCell -|> LSSig .Free (TypeOf IntCell)
-read w loc = Op (LSSig ?! 0) w [< loc, abst pure w]
+read : genOpType LSSig (readType IntCell)
+read = genOp Read
 
 export
-write : FamProd [< Var IntCell, TypeOf IntCell] -|> LSSig .Free (const ())
-write w locval = Op (LSSig ?! 1) w [< locval, abst pure w]
+write : genOpType LSSig (writeType IntCell)
+write = genOp Write
 
 export
-new : [< IntCell].shiftLeft (TypeOf IntCell) -|> LSSig .Free (Var IntCell)
-new w val =
-  -- move new location to the bottom of the heap
-  let val' = (BoxCoalgA IntCell).map (swapRen {w1 = w, w2 = [< IntCell]}) val
-  in Op (LSSig ?! 2) w [< val', abst pure w]
+new : genOpType LSSig (newType IntCell)
+new = genOp New
 
-equal : FamProd [< Var IntCell, Var IntCell] -|> LSSig .Free (const Bool)
-equal w vpair = Op (LSSig ?! 3) w [< vpair, abst pure w]
+export
+equal : genOpType LSSig (equalType IntCell)
+equal = genOp Equal
 
+------------ ground heap handler ---------------
 StateIn : Family
 StateIn w = ForAll w ValueOf
 
@@ -220,12 +195,12 @@ equalLocHeapOp w [< cont, [< var1, var2]] w' rho =
   in eval w' [< cont', var1' == var2']
 
 LocHeapAlgebra : {t : Type} -> LSSig .AlgebraOver (LocHeap t)
-LocHeapAlgebra = MkAlgebraOver [
-  readLocHeapOp,
-  writeLocHeapOp,
-  newLocHeapOp,
-  equalLocHeapOp
-]
+LocHeapAlgebra = MkAlgebraOver {sig = LSSig} $ \case
+  Read  => readLocHeapOp
+  Write => writeLocHeapOp
+  New   => newLocHeapOp
+  Equal => equalLocHeapOp
+
 
 -- The unit of the local state monad gave pureHeap, this is the right Kan
 -- extension of Inj -> Fin applied to it. Thus, this is the needed algebra.
@@ -249,7 +224,9 @@ swap =
   readWrite _ [< l2, lt] )
 
 handle : LSSig .Free (const Unit) -|> LocHeap Unit
-handle w comp = LocHeapAlgebra .fold (\w, _ => pureLocHeap ()) w comp
+handle w comp = LocHeapAlgebra .fold
+  {g = LocHeap _}
+  (\w, _ => pureLocHeap ()) w comp
 
 Ex : (Unit, StateIn [< IntCell, IntCell])
 Ex = handle [< P, P] (
