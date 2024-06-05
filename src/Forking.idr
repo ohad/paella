@@ -161,25 +161,25 @@ MIOAlgebra = MkAlgebraOver {sig = FSig} $ \case
 handle : FSig .Free (const Unit) -|> MIO
 handle w comp = MIOAlgebra .fold (\w, (), tids => pure ()) w comp
 
--- main : IO (Maybe Unit)
--- main = runMaybeT $ handle [< ] (axiom2 [<] [<]) [<]
-
 main : IO (Maybe Unit)
-main = runMaybeT $ do
-  putStrLn "parent: starting"
-  errored <- newIORef False
-  let child = do
-    catchError (do
-        putStrLn {io = MaybeT IO} "child: body"
-        throwError ()
-        putStrLn "child: unreachable"
-      ) $ \_ => do
-        putStrLn "child: caught error"
-        writeIORef errored True
-  putStrLn "parent: forking"
-  tid <- lift $ fork (map (\x => ()) $ runMaybeT child)
-  putStrLn "parent: waiting"
-  lift $ threadWait tid
-  res <- readIORef errored
-  putStrLn ("parent: " ++ if res then "errored" else "no error")
-  putStrLn "parent: done"
+main = runMaybeT $ handle [< ] (axiom2 [<] [<]) [<]
+
+-- main : IO (Maybe Unit)
+-- main = runMaybeT $ do
+--   putStrLn "parent: starting"
+--   errored <- newIORef False
+--   let child = do
+--     catchError (do
+--         putStrLn {io = MaybeT IO} "child: body"
+--         throwError ()
+--         putStrLn "child: unreachable"
+--       ) $ \_ => do
+--         putStrLn "child: caught error"
+--         writeIORef errored True
+--   putStrLn "parent: forking"
+--   tid <- lift $ fork (map (\x => ()) $ runMaybeT child)
+--   putStrLn "parent: waiting"
+--   lift $ threadWait tid
+--   res <- readIORef errored
+--   putStrLn ("parent: " ++ if res then "errored" else "no error")
+--   putStrLn "parent: done"
