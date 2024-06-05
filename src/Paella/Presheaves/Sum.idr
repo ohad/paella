@@ -33,6 +33,7 @@ caseSplit left right w (There (Here x)) = left w x
 
 -- Exponentiating by a sum of representables, as a product
 
+public export
 infixl 7 ^
 
 ||| The exponentiation of `f` by the sum of representables of `ws`

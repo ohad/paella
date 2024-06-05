@@ -75,18 +75,34 @@ print : genOpType FSig PrintType
 print = genOp Print
 
 ignorePrint : Var Name -|> FSig .Free (const ())
-ignorePrint w _ = print w "Parent"
+ignorePrint w _ = print w "parent"
 
 constAbsurd : const Void -|> const ()
 constAbsurd _ x = ()
 
+stopPrint : const () -|> FSig .Free (const Void)
+stopPrint w () = BoxCoalgConst .extend stop w . print w $ "stopping"
+
 stopUnit : const () -|> FSig .Free (const ())
-stopUnit = BoxCoalgConst .fmap constAbsurd . stop
+stopUnit = BoxCoalgConst .fmap constAbsurd . stopPrint
 
 axiom2 : FamProd [< ] -|> FSig .Free (const ())
 axiom2 =                                      (\w, [< ] =>
   fork _ ()                            ) >>== (\w, [< enu] =>
-  caseSplit ignorePrint stopUnit _ enu )
+  print _ "splitting"                  ) >>== (\w, [< enu, ()] =>
+  caseSplit ignorePrint stopUnit _ enu ) >>== (\w, [< enu, (), ()] =>
+  print _ "done"                       )
+
+parentPrint : Var Name -|> FSig .Free (const ())
+parentPrint w _ = print w "parent"
+
+childPrint : const () -|> FSig .Free (const ())
+childPrint w _ = print w "child"
+
+test : FamProd [< ] -|> FSig .Free (const ())
+test =                                              (\w, [< ] =>
+  fork _ ()                                  ) >>== (\w, [< enu] =>
+  caseSplit parentPrint childPrint _ enu )
 
 splitExp : (FamSum [< f1, f2] -% g) -|> FamProd [< f1 -% g, f2 -% g]
 splitExp w h =
@@ -96,14 +112,16 @@ splitExp w h =
 
 export
 TIDs : Family
-TIDs w = ForAll w ValueOf
+TIDs w = ForAll w (\a => (ValueOf a, IORef Bool))
 
-toFunc : {w : World} -> TIDs w -> ((a : A) -> Var a w -> ValueOf a)
+toFunc : {w : World} ->
+  TIDs w -> ((a : A) -> Var a w -> (ValueOf a, IORef Bool))
 toFunc [<] _ _ impossible
 toFunc (tid :< tids) _ Here = tids
 toFunc (tid :< tids) _ (There pos) = toFunc tid _ pos
 
-fromFunc : {w : World} -> ((a : A) -> Var a w -> ValueOf a) -> TIDs w
+fromFunc : {w : World} ->
+  ((a : A) -> Var a w -> (ValueOf a, IORef Bool)) -> TIDs w
 fromFunc {w = [<]} f = [<]
 fromFunc {w = (sx :< x)} f =
   fromFunc {w = sx} (\_, pos => f _ (There pos)) :< f _ Here
@@ -111,7 +129,7 @@ fromFunc {w = (sx :< x)} f =
 mapTIDs : {w, w' : World} -> (w ~> w') -> TIDs w' -> TIDs w
 mapTIDs rho tids = fromFunc (\a => toFunc tids a . rho a)
 
-getTID : {w : World} -> Var a w -> TIDs w -> ValueOf a
+getTID : {w : World} -> Var a w -> TIDs w -> (ValueOf a, IORef Bool)
 getTID Here (_ :< tid) = tid
 getTID (There pos) (tids :< tid) = getTID pos tids
 
@@ -129,27 +147,40 @@ forkMIO w [< cont, ()] =
   let [< parent, child] = splitExp w cont in
   \tids => MkMaybeT $ do
     -- See if child errors out
+    putStrLn "> Starting fork"
     errored <- newIORef False
+    putStrLn "> Made IO ref"
     let childM = runMaybeT $ do
+      putStrLn "> child: starting body"
       -- Catch the childs error and write to the IO ref
-      catchError (child w [< id, ()] tids) $ \_ =>
+      catchError (child w [< id, ()] tids >> putStrLn "> child: finished body") $ \_ => do
+        putStrLn "> child: errored"
         writeIORef errored True
     -- Fork the adapted child
+    putStrLn "> Forking child"
     tid <- Prelude.IO.fork (map (\x => ()) $ childM)
     -- Run the parent in the extended world
-    runMaybeT $
-      parent (w :< P) [< inl {w2 = [< P]}, Paella.Worlds.Here] (tids :< tid)
+    putStrLn "> Starting parent"
+    runMaybeT $ do
+      putStrLn "> parent: starting body"
+      parent
+        (w :< P)
+        [< inl {w2 = [< P]}, Paella.Worlds.Here]
+        (tids :< (tid, errored))
+      putStrLn "> parent: finished body"
 
 waitMIO : FamProd [< const () -% MIO, Var Name] -|> MIO
 waitMIO w [< cont, n] = \tids => do
-  lift $ threadWait (getTID n tids)
-  cont w [< id, ()] tids
+  let (tid, stopped) = getTID n tids
+  lift $ threadWait tid
+  s <- readIORef stopped
+  if s then cont w [< id, ()] tids else putStrLn "> Didn't call stop"
 
 stopMIO : FamProd [< const Void -% MIO, const ()] -|> MIO
 stopMIO w [< _, ()] _ = throwError ()
 
 printMIO : FamProd [< const () -% MIO, const String] -|> MIO
-printMIO w [< cont, s] tids = print s >> cont w [< id, ()] tids
+printMIO w [< cont, s] tids = putStrLn s >> cont w [< id, ()] tids
 
 MIOAlgebra : FSig .AlgebraOver MIO
 MIOAlgebra = MkAlgebraOver {sig = FSig} $ \case
@@ -162,24 +193,28 @@ handle : FSig .Free (const Unit) -|> MIO
 handle w comp = MIOAlgebra .fold (\w, (), tids => pure ()) w comp
 
 main : IO (Maybe Unit)
-main = runMaybeT $ handle [< ] (axiom2 [<] [<]) [<]
+main = runMaybeT $ handle [< ] (test [<] [<]) [<]
 
--- main : IO (Maybe Unit)
--- main = runMaybeT $ do
---   putStrLn "parent: starting"
---   errored <- newIORef False
---   let child = do
---     catchError (do
---         putStrLn {io = MaybeT IO} "child: body"
---         throwError ()
---         putStrLn "child: unreachable"
---       ) $ \_ => do
---         putStrLn "child: caught error"
---         writeIORef errored True
---   putStrLn "parent: forking"
---   tid <- lift $ fork (map (\x => ()) $ runMaybeT child)
---   putStrLn "parent: waiting"
---   lift $ threadWait tid
---   res <- readIORef errored
---   putStrLn ("parent: " ++ if res then "errored" else "no error")
---   putStrLn "parent: done"
+sanity : IO (Maybe Unit)
+sanity =
+  let [< parent, child] = splitExp [< P] $
+    abst (caseSplit parentPrint childPrint) [< P]
+  in
+  do
+    iob <- newIORef True
+    tid <- fork (pure ()) 
+    _ <- runMaybeT $ handle [< P] (parent [< P] [< id, Here]) [< (tid, iob)]
+    runMaybeT $ handle [< P] (child [< P] [< id, ()]) [< (tid, iob)]
+
+example : Either ThreadID () -> IO ()
+example (Left tid) = putStrLn "parent"
+example (Right ()) = putStrLn "child"
+
+split : (Either a b -> c) -> (a -> c, b -> c)
+split f = (\x => f (Left x), \x => f (Right x))
+
+-- main : IO ()
+-- main = do
+--   let (parent, child) = split example
+--   tid <- fork (child ())
+--   parent tid
