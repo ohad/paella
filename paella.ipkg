@@ -32,13 +32,14 @@ modules =
   Paella.Presheaves.Exponential,
   GroundState,
   LocalState,
-  Forking
+  Forking,
+  ForkingPure
 
 -- main file (i.e. file to load at REPL)
-main = Forking
+main = ForkingPure
 
 -- name of executable
-executable = forking
+executable = forking-pure
 -- opts =
 sourcedir = "src"
 -- builddir =
