@@ -1,7 +1,6 @@
 module ReverseMode
 
 import Paella
-import Debug.Trace
 
 Eq (Var a w) where
   Here      == Here      = True
@@ -186,14 +185,14 @@ runHeap h ss = h ss
 
 readHeapOp : FamProd [< TypeOf IntCell -% Heap t, Var IntCell] -|> Heap t
 readHeapOp w [< cont, var] ss =
-  let val = traceVal $ getComponent var ss in
+  let val = getComponent var ss in
   eval w [< cont, val] ss
 
 writeHeapOp :
   FamProd [< const () -% Heap t, FamProd [< Var IntCell, TypeOf IntCell]]
   -|> Heap t
 writeHeapOp w [< cont, [< var, val]] ss =
-  let ss' = setComponent var ss (traceVal val) in
+  let ss' = setComponent var ss val in
   eval w [< cont, ()] ss'
 
 newHeapOp :
@@ -417,21 +416,33 @@ BoxCoalgPropProp = BoxCoalgProd [< BoxCoalgProp, BoxCoalgProp]
 writeBaseSigOp :
   FamProd [< const () -% BaseSig .Free (const ()), FamProd [< Var IntCell, TypeOf IntCell]]
   -|> BaseSig .Free (const ())
-writeBaseSigOp =           (\w, [< cont, [< l, v]] =>
-  trace "WRITE" $ write _ [< l, v]  ) >>== (\w, [< cont, [< l, v], ()] =>
+writeBaseSigOp =
+  let %hint
+      BoxCoalgExpp : BoxCoalg (const () -% BaseSig .Free (const ()))
+      BoxCoalgExpp = BoxCoalgExp
+  in                        (\w, [< cont, [< l, v]] =>
+  write _ [< l, v]  ) >>== (\w, [< cont, [< l, v], ()] =>
   cont _ [< id, ()] )
 
 constBaseSigOp :
   FamProd [< Prop -% BaseSig .Free (const ()), const Int] -|>
   BaseSig .Free (const ())
-constBaseSigOp =                 (\w, [< cont, c] =>
+constBaseSigOp =
+  let %hint
+      BoxCoalgExpp : BoxCoalg (Prop -% BaseSig .Free (const ()))
+      BoxCoalgExpp = BoxCoalgExp
+  in                             (\w, [< cont, c] =>
   new _ 0                 ) >>== (\w, [< cont, c, l] =>
   cont _ [< id, [< c, l]] )
 
 negateBaseSigOp :
   FamProd [< Prop -% BaseSig .Free (const ()), Prop] -|>
   BaseSig .Free (const ())
-negateBaseSigOp =                 (\w, [< cont, [< v, dv]] =>
+negateBaseSigOp =
+  let %hint
+      BoxCoalgExpp : BoxCoalg (Prop -% BaseSig .Free (const ()))
+      BoxCoalgExpp = BoxCoalgExp
+  in                              (\w, [< cont, [< v, dv]] =>
   new _ 0                  ) >>== (\w, [< cont, [< v, dv], dr] =>
   neg _ v                  ) >>== (\w, [< cont, [< v, dv], dr, r] =>
   cont _ [< id, [< r, dr]] ) >>>> (\w, [< cont, [< v, dv], dr, r] =>
@@ -444,34 +455,42 @@ negateBaseSigOp =                 (\w, [< cont, [< v, dv]] =>
 addBaseSigOp :
   FamProd [< Prop -% BaseSig .Free (const ()), FamProd [< Prop, Prop] ] -|>
   BaseSig .Free (const ())
-addBaseSigOp =                    (\w, [< cont, [< [< x, dx], [< y, dy ]] ] =>
+addBaseSigOp =
+  let %hint
+      BoxCoalgExpp : BoxCoalg (Prop -% BaseSig .Free (const ()))
+      BoxCoalgExpp = BoxCoalgExp
+  in                              (\w, [< cont, [< [< x, dx], [< y, dy ]] ] =>
   new _ 0                  ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr] =>
   add _ [< x, y]           ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r] =>
   cont _ [< id, [< r, dr]] ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r] =>
   read _ dr                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr'] =>
   read _ dx                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx'] =>
-  read _ dy                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy'] =>
-  add _ [< dx', dr']       ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx''] =>
-  add _ [< dy', dr']       ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dy''] =>
-  write _ [< dx, dx'']     ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dy''] =>
+  add _ [< dx', dr']       ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dx''] =>
+  write _ [< dx, dx'']     ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dx''] =>
+  read _ dy                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dx'', dy'] =>
+  add _ [< dy', dr']       ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dx'', dy', dy''] =>
   write _ [< dy, dy'']     )
 
 multiplyBaseSigOp :
   FamProd [< Prop -% BaseSig .Free (const ()), FamProd [< Prop, Prop] ] -|>
   BaseSig .Free (const ())
-multiplyBaseSigOp =               (\w, [< cont, [< [< x, dx], [< y, dy ]] ] =>
-  trace "n1"  $ new _ 0                  ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr] =>
-  trace "a2"  $ mul _ [< traceVal x, traceVal y]           ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r] =>
-  trace "c3"  $ cont _ [< id, [< traceVal r, dr]] ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r] =>
-  trace "r4"  $ read _ dr                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr'] =>
-  trace "r5"  $ read _ dx                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx'] =>
-  trace "r6"  $ read _ dy                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy'] =>
-  trace "m7"  $ mul _ [< y, traceVal dr']         ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx''] =>
-  trace "a8"  $ add _ [< traceVal dx', traceVal dx'']      ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dx'''] =>
-  trace "m9"  $ mul _ [< x, dr']         ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dx''', dy''] =>
-  trace "a10" $ add _ [< traceVal dy', traceVal dy'']      ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dx''', dy'', dy'''] =>
-  trace "w11" $ write _ [< dx, traceVal dx''']    ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dx''', dy'', dy'''] =>
-  trace "w12" $ write _ [< dy, traceVal dy''']    )
+multiplyBaseSigOp =
+  let %hint
+      BoxCoalgExpp : BoxCoalg (Prop -% BaseSig .Free (const ()))
+      BoxCoalgExpp = BoxCoalgExp
+  in                              (\w, [< cont, [< [< x, dx], [< y, dy ]] ] =>
+  new _ 0                  ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr] =>
+  mul _ [< x, y]           ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r] =>
+  cont _ [< id, [< r, dr]] ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r] =>
+  read _ dr                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr'] =>
+  read _ (dx)              ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx'] =>
+  mul _ [< y, dr']         ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dx''] =>
+  add _ [< dx', dx'']      ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dx'', dx'''] =>
+  write _ [< dx, dx''']    ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dx'', dx'''] =>
+  read _ (dy)              ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dx'', dx''', dy'] =>
+  mul _ [< x, dr']         ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dx'', dx''', dy', dy''] =>
+  add _ [< dy', dy'']      ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dx'', dx''', dy', dy'', dy'''] =>
+  write _ [< dy, dy''']    )
 
 BaseSigAlgebra :  RSig .AlgebraOver (BaseSig .Free (const ()))
 BaseSigAlgebra = MkAlgebraOver {sig = RSig} $ \case
@@ -493,12 +512,12 @@ rterm =                   (\w, [< x, y] =>
  radd _ [< p, ny2] )
 
 crterm : FamProd [< Prop] -|> RSig .Free Prop
-crterm =                 (\w, [< x] =>
-  rc _ 4          ) >>== (\w, [< x, c] =>
-  rterm _ [< x, c])
+crterm = (>>==) {fCoalg = BoxCoalgProp} {gCoalg = BoxCoalgProp} {sigCoalg = RSigFunc} {gammaCoalgs = [<BoxCoalgProp]}
+  (\w, [< x] => rc _ 4)
+  (\w, [< x, c] => rterm _ [< x, c])
 
-squared : FamProd [< Prop] -|> RSig .Free (const ())
-squared = (\w, [< x] => rmul _ [< x, x]) >>== (\w, [< x, [< _, dy]] =>  rwrite _ [< dy, 1])
+squared : FamProd [< Prop] -|> RSig .Free Prop
+squared = (\w, [< x] => rmul _ [< x, x])
 
 rhandle : RSig .Free (const ()) -|> BaseSig .Free (const ())
 rhandle w comp = BaseSigAlgebra .fold
@@ -508,14 +527,14 @@ rhandle w comp = BaseSigAlgebra .fold
 aux : RSig .Free Prop -|> RSig .Free (const ())
 aux = BoxCoalgConst .extend (\w, [< _, dx] => rwrite w [< dx, 1])
 
-grad : (FamProd [< Prop] -|> RSig .Free (const ())) ->
+grad : (FamProd [< Prop] -|> RSig .Free Prop) ->
   (FamProd [< const Int] -|> BaseSig .Free (const Int))
 grad f =                                      (\w, [< x]  =>
   new _ 0   )                            >>== (\w, [< x, dx] =>
-  rhandle w (f w [< [< x, dx]])) >>>> (\w, [< x, dx] =>
+  rhandle w ((aux . f) w [< [< x, dx]])) >>>> (\w, [< x, dx] =>
   read _ dx )
 
 main : IO ()
 main =
-  let (r, _) = handle [<] (grad squared [<] [< 3]) [<] id [<]
-  in print r
+  let (r, _) = handle [<] (grad crterm [<] [< 2]) [<] id [<]
+  in printLn r
