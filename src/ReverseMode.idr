@@ -301,15 +301,31 @@ swap =
   readWrite _ [< l1, l2] ) >>== (\w, [< l1, l2, lt, (), () ] =>
   readWrite _ [< l2, lt] )
 
-handle : BaseSig .Free (const Unit) -|> LocHeap Unit
+handle : {t : Type} -> BaseSig .Free (const t) -|> LocHeap t
 handle w comp = LocHeapAlgebra .fold
   {g = LocHeap _}
   (\w, x => pureLocHeap x) w comp
 
-Ex : (Unit, StateIn [< IntCell, IntCell])
-Ex = handle [< Ptr, Ptr] (
+Ex1 : (Unit, StateIn [< IntCell, IntCell])
+Ex1 = handle [< Ptr, Ptr] (
     ReverseMode.swap [< Ptr, Ptr] [< Here, There Here]
   ) [< Ptr, Ptr] id [< 1, 2]
+
+-- 1 + x^3 + (- y^2)
+term : FamProd [< const Int, const Int] -|> BaseSig .Free (const Int)
+term =                   (\w, [< x, y] =>
+ c _ 1            ) >>== (\w, [< x, y, o] =>
+ mul _ [< x, x]   ) >>== (\w, [< x, y, o, x2] =>
+ mul _ [< x, x2]  ) >>== (\w, [< x, y, o, x2, x3] =>
+ add _ [< o, x3]  ) >>== (\w, [< x, y, o, x2, x3, p] =>
+ mul _ [< y, y]   ) >>== (\w, [< x, y, o, x2, x3, p, y2] =>
+ neg _ y2         ) >>== (\w, [< x, y, o, x2, x3, p, y2, ny2] =>
+ add _ [< p, ny2] )
+
+Ex2 : (Int, StateIn [< ])
+Ex2 = handle [< ] (
+    term [< ] [< 2, 4]
+  ) [< ] id [< ]
 
 ------------------------ Reverse mode ------------------------
 
@@ -323,6 +339,7 @@ BoxCoalgProp = BoxCoalgProd [< BoxCoalgConst, BoxCoalgVar]
 
 public export
 data RSig : Signature where
+  RWrite    : RSig (writeType IntCell)
   RConst    : RSig (constType Prop)
   RNegate   : RSig (negateType Prop)
   RAdd      : RSig (addType Prop)
@@ -331,6 +348,11 @@ data RSig : Signature where
 %hint
 public export
 RSigFunc : BoxCoalgSignature RSig
+RSigFunc RWrite =
+  MkFunOpSig
+    { Arity = BoxCoalgConst
+    , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgA IntCell]
+    }
 RSigFunc RConst =
   MkFunOpSig
     { Arity = BoxCoalgProp
@@ -353,6 +375,10 @@ RSigFunc RMultiply =
     }
 
 export
+rwrite : genOpType RSig (writeType IntCell)
+rwrite = genOp RWrite
+
+export
 rc : genOpType RSig (constType Prop)
 rc = genOp RConst
 
@@ -371,12 +397,24 @@ rmul = genOp RMultiply
 BoxCoalgBaseFree : {f : Family} -> BoxCoalg f -> BoxCoalg (BaseSig .Free f)
 BoxCoalgBaseFree = BoxCoalgFree BaseSigFunc
 
+%hint
 BoxCoalgExpBaseFree : BoxCoalg (g -% BaseSig .Free f)
 BoxCoalgExpBaseFree = BoxCoalgExp
 
 %hint
+BoxCoalgVarType : BoxCoalg (FamProd [< Var IntCell, TypeOf IntCell])
+BoxCoalgVarType = BoxCoalgProd [< BoxCoalgVar, BoxCoalgA IntCell]
+
+%hint
 BoxCoalgPropProp : BoxCoalg (FamProd [< Prop, Prop])
 BoxCoalgPropProp = BoxCoalgProd [< BoxCoalgProp, BoxCoalgProp]
+
+writeBaseSigOp :
+  FamProd [< const () -% BaseSig .Free (const ()), FamProd [< Var IntCell, TypeOf IntCell]]
+  -|> BaseSig .Free (const ())
+writeBaseSigOp =           (\w, [< cont, [< l, v]] =>
+  write _ [< l, v]  ) >>>> (\w, [< cont, [< l, v]] =>
+  cont _ [< id, ()] )
 
 constBaseSigOp :
   FamProd [< Prop -% BaseSig .Free (const ()), const Int] -|>
@@ -432,7 +470,39 @@ multiplyBaseSigOp =               (\w, [< cont, [< [< x, dx], [< y, dy ]] ] =>
 
 BaseSigAlgebra :  RSig .AlgebraOver (BaseSig .Free (const ()))
 BaseSigAlgebra = MkAlgebraOver {sig = RSig} $ \case
+  RWrite    => writeBaseSigOp
   RConst    => constBaseSigOp
   RNegate   => negateBaseSigOp
   RAdd      => addBaseSigOp
   RMultiply => multiplyBaseSigOp
+
+-- 1 + x^3 + (- y^2)
+rterm : FamProd [< Prop, Prop] -|> RSig .Free Prop
+rterm =                   (\w, [< x, y] =>
+ rc _ 1            ) >>== (\w, [< x, y, o] =>
+ rmul _ [< x, x]   ) >>== (\w, [< x, y, o, x2] =>
+ rmul _ [< x, x2]  ) >>== (\w, [< x, y, o, x2, x3] =>
+ radd _ [< o, x3]  ) >>== (\w, [< x, y, o, x2, x3, p] =>
+ rmul _ [< y, y]   ) >>== (\w, [< x, y, o, x2, x3, p, y2] =>
+ rneg _ y2         ) >>== (\w, [< x, y, o, x2, x3, p, y2, ny2] =>
+ radd _ [< p, ny2] )
+
+crterm : FamProd [< Prop] -|> RSig .Free Prop
+crterm =                 (\w, [< x] =>
+  rc _ 4          ) >>== (\w, [< x, c] =>
+  rterm _ [< x, c])
+
+rhandle : RSig .Free (const ()) -|> BaseSig .Free (const ())
+rhandle w comp = BaseSigAlgebra .fold
+  {g = BaseSig .Free (const ())}
+  pure w comp
+
+aux : RSig .Free (FamProd [< const Int, Var IntCell]) -|> RSig .Free (const ())
+aux = BoxCoalgConst .extend (\w, [< _, dx] => rwrite w [< dx, 1])
+
+grad : (FamProd [< Prop] -|> RSig .Free Prop) ->
+  (FamProd [< const Int] -|> BaseSig .Free (const Int))
+grad f =                                      (\w, [< x]  =>
+  new _ 0   )                            >>== (\w, [< x, dx] =>
+  rhandle w (aux w $ f w [< [< x, dx]])) >>>> (\w, [< x, dx] =>
+  read _ dx )
