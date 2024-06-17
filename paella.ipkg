@@ -34,10 +34,10 @@ modules =
   LocalState
 
 -- main file (i.e. file to load at REPL)
--- main =
+main = ReverseMode
 
 -- name of executable
--- executable =
+executable = reverse-mode
 -- opts =
 sourcedir = "src"
 -- builddir =
