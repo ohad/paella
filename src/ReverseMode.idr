@@ -310,3 +310,129 @@ Ex : (Unit, StateIn [< IntCell, IntCell])
 Ex = handle [< Ptr, Ptr] (
     ReverseMode.swap [< Ptr, Ptr] [< Here, There Here]
   ) [< Ptr, Ptr] id [< 1, 2]
+
+------------------------ Reverse mode ------------------------
+
+export
+Prop : Family
+Prop = FamProd [< const Int, Var IntCell]
+
+%hint
+BoxCoalgProp : BoxCoalg Prop
+BoxCoalgProp = BoxCoalgProd [< BoxCoalgConst, BoxCoalgVar]
+
+public export
+data RSig : Signature where
+  RConst    : RSig (constType Prop)
+  RNegate   : RSig (negateType Prop)
+  RAdd      : RSig (addType Prop)
+  RMultiply : RSig (multiplyType Prop)
+
+%hint
+public export
+RSigFunc : BoxCoalgSignature RSig
+RSigFunc RConst =
+  MkFunOpSig
+    { Arity = BoxCoalgProp
+    , Args = BoxCoalgConst
+    }
+RSigFunc RNegate =
+  MkFunOpSig
+    { Arity = BoxCoalgProp
+    , Args = BoxCoalgProp
+    }
+RSigFunc RAdd =
+  MkFunOpSig
+    { Arity = BoxCoalgProp
+    , Args = BoxCoalgProd [< BoxCoalgProp, BoxCoalgProp]
+    }
+RSigFunc RMultiply =
+  MkFunOpSig
+    { Arity = BoxCoalgProp
+    , Args = BoxCoalgProd [< BoxCoalgProp, BoxCoalgProp]
+    }
+
+export
+rc : genOpType RSig (constType Prop)
+rc = genOp RConst
+
+export
+rneg : genOpType RSig (negateType Prop)
+rneg = genOp RNegate
+
+export
+radd : genOpType RSig (addType Prop)
+radd = genOp RAdd
+
+export
+rmul : genOpType RSig (multiplyType Prop)
+rmul = genOp RMultiply
+
+BoxCoalgBaseFree : {f : Family} -> BoxCoalg f -> BoxCoalg (BaseSig .Free f)
+BoxCoalgBaseFree = BoxCoalgFree BaseSigFunc
+
+BoxCoalgExpBaseFree : BoxCoalg (g -% BaseSig .Free f)
+BoxCoalgExpBaseFree = BoxCoalgExp
+
+%hint
+BoxCoalgPropProp : BoxCoalg (FamProd [< Prop, Prop])
+BoxCoalgPropProp = BoxCoalgProd [< BoxCoalgProp, BoxCoalgProp]
+
+constBaseSigOp :
+  FamProd [< Prop -% BaseSig .Free (const ()), const Int] -|>
+  BaseSig .Free (const ())
+constBaseSigOp =                 (\w, [< cont, c] =>
+  new _ 0                 ) >>== (\w, [< cont, c, l] =>
+  cont _ [< id, [< c, l]] )
+
+negateBaseSigOp :
+  FamProd [< Prop -% BaseSig .Free (const ()), Prop] -|>
+  BaseSig .Free (const ())
+negateBaseSigOp =                 (\w, [< cont, [< v, dv]] =>
+  new _ 0                  ) >>== (\w, [< cont, [< v, dv], dr] =>
+  neg _ v                  ) >>== (\w, [< cont, [< v, dv], dr, r] =>
+  cont _ [< id, [< r, dr]] ) >>>> (\w, [< cont, [< v, dv], dr, r] =>
+  read _ dr                ) >>== (\w, [< cont, [< v, dv], dr, r, dr'] =>
+  read _ dv                ) >>== (\w, [< cont, [< v, dv], dr, r, dr', dv'] =>
+  neg _ dr'                ) >>== (\w, [< cont, [< v, dv], dr, r, dr', dv', dr''] =>
+  add _ [< dv', dr']       ) >>== (\w, [< cont, [< v, dv], dr, r, dr', dv', dr'', dv''] =>
+  write _ [< dv, dv'']     )
+
+addBaseSigOp :
+  FamProd [< Prop -% BaseSig .Free (const ()), FamProd [< Prop, Prop] ] -|>
+  BaseSig .Free (const ())
+addBaseSigOp =                    (\w, [< cont, [< [< x, dx], [< y, dy ]] ] =>
+  new _ 0                  ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr] =>
+  add _ [< x, y]           ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r] =>
+  cont _ [< id, [< r, dr]] ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r] =>
+  read _ dr                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr'] =>
+  read _ dx                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx'] =>
+  read _ dy                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy'] =>
+  add _ [< dx', dr']       ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx''] =>
+  add _ [< dy', dr']       ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dy''] =>
+  write _ [< dx, dx'']     ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dy''] =>
+  write _ [< dy, dy'']     )
+
+multiplyBaseSigOp :
+  FamProd [< Prop -% BaseSig .Free (const ()), FamProd [< Prop, Prop] ] -|>
+  BaseSig .Free (const ())
+multiplyBaseSigOp =               (\w, [< cont, [< [< x, dx], [< y, dy ]] ] =>
+  new _ 0                  ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr] =>
+  add _ [< x, y]           ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r] =>
+  cont _ [< id, [< r, dr]] ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r] =>
+  read _ dr                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr'] =>
+  read _ dx                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx'] =>
+  read _ dy                ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy'] =>
+  mul _ [< y, dr']         ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx''] =>
+  add _ [< dx', dx'']      ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dx'''] =>
+  mul _ [< x, dr']         ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dx''', dy''] =>
+  add _ [< dy', dy'']      ) >>== (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dx''', dy'', dy'''] =>
+  write _ [< dx, dx''']    ) >>>> (\w, [< cont, [< [< x, dx], [< y, dy ]], dr, r, dr', dx', dy', dx'', dx''', dy'', dy'''] =>
+  write _ [< dy, dy''']    )
+
+BaseSigAlgebra :  RSig .AlgebraOver (BaseSig .Free (const ()))
+BaseSigAlgebra = MkAlgebraOver {sig = RSig} $ \case
+  RConst    => constBaseSigOp
+  RNegate   => negateBaseSigOp
+  RAdd      => addBaseSigOp
+  RMultiply => multiplyBaseSigOp

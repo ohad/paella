@@ -204,6 +204,28 @@ export
       (\w, [< env, x] => k w (env :< x))
   ) . tuple [< id, xs]
 
+export
+infixr 1 >>>>
+
+export
+(>>>>) :
+  {sig : Signature} ->
+  {gammas : SnocList Family} ->
+  {g : Family} ->
+  (sigCoalg : BoxCoalgSignature sig) =>
+  (gammaCoalgs : ForAll gammas BoxCoalg) =>
+  (gCoalg : BoxCoalg g)  =>
+  (FamProd gammas -|> sig.Free (const ())) ->
+  (FamProd gammas -|> sig.Free g) ->
+  (FamProd gammas -|> sig.Free g)
+(>>>>) xs k =
+  let gammaCoalg = BoxCoalgProd $
+    mapPropertyWithRelevant (\_, c => c) gammaCoalgs
+  in
+  ( gCoalg.extendStrength {sigCoalg} {fCoalg = BoxCoalgConst} {gammaCoalg}
+      (\w, [< env, x] => k w env)
+  ) . tuple [< id, xs]
+
 ------- Generic effects ----------
 
 -- Can derive from previous but can cut out hassle
