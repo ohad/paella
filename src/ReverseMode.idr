@@ -54,34 +54,75 @@ equalType : A -> OpSig
 equalType a = FamProd [< Var a, Var a] ~|> const Bool
 
 public export
-data BaseSig : Signature where
-  Read  : BaseSig (readType IntCell)
-  Write : BaseSig (writeType IntCell)
-  New   : BaseSig (newType IntCell)
-  Equal : BaseSig (equalType IntCell)
+constType : (a : Family) -> OpSig
+constType a = const Int ~|> a
 
+public export
+negateType : (a : Family) -> OpSig
+negateType a = a ~|> a
+
+public export
+addType : (a : Family) -> OpSig
+addType a = FamProd [< a, a] ~|> a
+
+public export
+multiplyType : (a : Family) -> OpSig
+multiplyType a = FamProd [< a, a] ~|> a
+
+public export
+data BaseSig : Signature where
+  Read     : BaseSig (readType IntCell)
+  Write    : BaseSig (writeType IntCell)
+  New      : BaseSig (newType IntCell)
+  Equal    : BaseSig (equalType IntCell)
+  Const    : BaseSig (constType (const Int))
+  Negate   : BaseSig (negateType (const Int))
+  Add      : BaseSig (addType (const Int))
+  Multiply : BaseSig (multiplyType (const Int))
 
 %hint
 public export
 BaseSigFunc : BoxCoalgSignature BaseSig
-BaseSigFunc Read  =  MkFunOpSig
-                { Arity = BoxCoalgA IntCell
-                , Args  = BoxCoalgVar
-                }
-BaseSigFunc Write = MkFunOpSig
-                { Arity = BoxCoalgConst
-                , Args = BoxCoalgProd
-                      [< BoxCoalgVar
-                       , BoxCoalgA IntCell]
-                }
-BaseSigFunc New   = MkFunOpSig
-                { Arity = BoxCoalgVar
-                , Args = BoxCoalgA IntCell
-                }
-BaseSigFunc Equal = MkFunOpSig
-                { Arity = BoxCoalgConst
-                , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgVar]
-                }
+BaseSigFunc Read = 
+  MkFunOpSig
+    { Arity = BoxCoalgA IntCell
+    , Args  = BoxCoalgVar
+    }
+BaseSigFunc Write =
+  MkFunOpSig
+    { Arity = BoxCoalgConst
+    , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgA IntCell]
+    }
+BaseSigFunc New =
+  MkFunOpSig
+    { Arity = BoxCoalgVar
+    , Args = BoxCoalgA IntCell
+    }
+BaseSigFunc Equal =
+  MkFunOpSig
+    { Arity = BoxCoalgConst
+    , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgVar]
+    }
+BaseSigFunc Const =
+  MkFunOpSig
+    { Arity = BoxCoalgConst
+    , Args = BoxCoalgConst
+    }
+BaseSigFunc Negate =
+  MkFunOpSig
+    { Arity = BoxCoalgConst
+    , Args = BoxCoalgConst
+    }
+BaseSigFunc Add =
+  MkFunOpSig
+    { Arity = BoxCoalgConst
+    , Args = BoxCoalgProd [< BoxCoalgConst, BoxCoalgConst]
+    }
+BaseSigFunc Multiply =
+  MkFunOpSig
+    { Arity = BoxCoalgConst
+    , Args = BoxCoalgProd [< BoxCoalgConst, BoxCoalgConst]
+    }
 
 export
 read : genOpType BaseSig (readType IntCell)
@@ -98,6 +139,22 @@ new = genOp New
 export
 equal : genOpType BaseSig (equalType IntCell)
 equal = genOp Equal
+
+export
+c : genOpType BaseSig (constType (const Int))
+c = genOp Const
+
+export
+neg : genOpType BaseSig (negateType (const Int))
+neg = genOp Negate
+
+export
+add : genOpType BaseSig (addType (const Int))
+add = genOp Add
+
+export
+mul : genOpType BaseSig (multiplyType (const Int))
+mul = genOp Multiply
 
 ------------ ground heap handler ---------------
 StateIn : Family
@@ -194,13 +251,34 @@ equalLocHeapOp w [< cont, [< var1, var2]] w' rho =
       cont' = expMap extractHeap w' (BoxCoalgExp .map rho cont)
   in eval w' [< cont', var1' == var2']
 
-LocHeapAlgebra : {t : Type} -> BaseSig .AlgebraOver (LocHeap t)
-LocHeapAlgebra = MkAlgebraOver {sig = BaseSig} $ \case
-  Read  => readLocHeapOp
-  Write => writeLocHeapOp
-  New   => newLocHeapOp
-  Equal => equalLocHeapOp
+constLocHeapOp : {t : Type} ->
+  FamProd [< const Int -% LocHeap t, const Int] -|> LocHeap t
+constLocHeapOp w [< cont, c] w' rho = cont w [<id, c] w' rho
 
+negateLocHeapOp : {t : Type} ->
+  FamProd [< const Int -% LocHeap t, const Int] -|> LocHeap t
+negateLocHeapOp w [< cont, x] w' rho = cont w [<id, Prelude.negate x] w' rho
+
+addLocHeapOp : {t : Type} ->
+  FamProd [< const Int -% LocHeap t, FamProd [< const Int, const Int] ] -|> 
+  LocHeap t
+addLocHeapOp w [< cont, [< x, y]] w' rho = cont w [<id, x + y] w' rho
+
+multiplyLocHeapOp : {t : Type} ->
+  FamProd [< const Int -% LocHeap t, FamProd [< const Int, const Int] ] -|> 
+  LocHeap t
+multiplyLocHeapOp w [< cont, [< x, y]] w' rho = cont w [<id, x * y] w' rho
+
+LocHeapAlgebra :  {t : Type} -> BaseSig .AlgebraOver (LocHeap t)
+LocHeapAlgebra = MkAlgebraOver {sig = BaseSig} $ \case
+  Read     => readLocHeapOp
+  Write    => writeLocHeapOp
+  New      => newLocHeapOp
+  Equal    => equalLocHeapOp
+  Const    => constLocHeapOp
+  Negate   => negateLocHeapOp
+  Add      => addLocHeapOp
+  Multiply => multiplyLocHeapOp
 
 -- The unit of the local state monad gave pureHeap, this is the right Kan
 -- extension of Inj -> Fin applied to it. Thus, this is the needed algebra.
@@ -226,4 +304,9 @@ swap =
 handle : BaseSig .Free (const Unit) -|> LocHeap Unit
 handle w comp = LocHeapAlgebra .fold
   {g = LocHeap _}
-  (\w, _ => pureLocHeap ()) w comp
+  (\w, x => pureLocHeap x) w comp
+
+Ex : (Unit, StateIn [< IntCell, IntCell])
+Ex = handle [< Ptr, Ptr] (
+    ReverseMode.swap [< Ptr, Ptr] [< Here, There Here]
+  ) [< Ptr, Ptr] id [< 1, 2]
