@@ -50,9 +50,9 @@ ignorePrint : String -> (const () -|> CSig .Free (const ()))
 ignorePrint s w  _ = print w s
 
 test : FamProd [< ] -|> CSig .Free (const ())
-test =               (\w, [< ] =>
-  choose _ () ) >>== (\w, [< coc] =>
-  caseSplit (ignorePrint "left") (ignorePrint "right") _ coc )
+test = (>>==) {sig = CSig} {gammaCoalgs = [<]} {fCoalg = BoxCoalgSum [< BoxCoalgConst, BoxCoalgConst]} {gCoalg = BoxCoalgConst}
+  (\w, [< ] => choose _ () )
+  (\w, [< coc] => caseSplit (ignorePrint "left") (ignorePrint "right") _ coc )
 
 Pure : World -> Type
 Pure _ = Writer String ()
