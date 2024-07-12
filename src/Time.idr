@@ -94,22 +94,27 @@ BoxCoalgClocked = MkBoxCoalg $ \t1, m, t2, le =>
       ((Sy ty'), (Later le')) => BoxCoalgClocked .map le' m ty'
 
 grabOp : FamProd [< Ticky -% Clocked, const ()] -|> Clocked
-grabOp t [< cont, ()] = cont t [< Now, Clock 0]
+grabOp t [< cont, ()] = eval t [< cont, Clock 0]
 
 emitOp : FamProd [< const () -% Clocked, Ticky] -|> Clocked
-emitOp t [< cont, Clock i] = \ty => do
-  printLn i
-  cont t [< Now, ()] ty
+emitOp t [< cont, Clock i] = \ty => printLn i >> eval t [< cont, ()] ty
 
-waiting : (Le s -|> Clocked) -> (Le s -|> Clocked)
-waiting cont t le ty = do
+waiting : {s : World} -> FamProd [< Le s -% Clocked, Le s] -|> Clocked
+waiting t [< cont, le] = \ty => do
   putStrLn "waiting"
   getLine >>= \case
-    "" => waiting cont (S t) (Later le) (Sy ty)
-    _  => cont t le ty
+    "" =>
+      let step = Later Now                   -- Le t (S t)
+          le' = BoxCoalgEnv .map step le     -- Le s (S t)
+          cont' = BoxCoalgExp .map step cont -- (Le s -% Clocked) (S t)
+      in waiting (S t) [< cont', le'] $ Sy ty
+    _  => eval t [< cont, le] $ ty
+
+updating : {s : World} -> (const () -% Clocked) s -> (Le s -|> Clocked)
+updating cont t le = eval t [< BoxCoalgExp .map le cont, ()]
 
 waitOp : FamProd [< const () -% Clocked, const ()] -|> Clocked
-waitOp t [< cont, ()] = waiting (\t', le => cont t' [< le, ()]) t Now
+waitOp t [< cont, ()] = waiting t [< abst (updating cont) t, Now]
 
 ClockedAlgebra : TSig .AlgebraOver Clocked
 ClockedAlgebra = MkAlgebraOver [

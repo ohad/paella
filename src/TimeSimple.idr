@@ -134,9 +134,12 @@ namespace Time
       _  => c t
 
   ClockedTime : (OpTime).AlgebraOver Clocked
-  ClockedTime {opSig = .(Unit ~|> Ticky)} Grab k x = \t => k t t
-  ClockedTime {opSig = .(Ticky ~|> Unit)} Emit k x = \t => printLn x >> k () t
-  ClockedTime {opSig = .(Unit ~|> Unit)}  Wait k x = \t => waiting (k ()) t
+  ClockedTime {opSig = .(Unit ~|> Ticky)} Grab k x =
+    \t => k t t
+  ClockedTime {opSig = .(Ticky ~|> Unit)} Emit k x =
+    \t => printLn (t - x) >> k () t
+  ClockedTime {opSig = .(Unit ~|> Unit)}  Wait k x =
+    \t => waiting (k ()) t
   
   export
   Ex1 : (OpTime).Free Unit
