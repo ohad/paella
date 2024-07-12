@@ -26,13 +26,14 @@ modules =
   Paella.Presheaves.Product,
   Paella.Presheaves.Sum,
   Paella.Presheaves.Exponential,
-  Time
+  Time,
+  TimeSimple
 
 -- main file (i.e. file to load at REPL)
-main = Time
+main = TimeSimple
 
 -- name of executable
-executable = time
+executable = timesimple
 -- opts =
 sourcedir = "src"
 -- builddir =
