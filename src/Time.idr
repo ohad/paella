@@ -94,22 +94,18 @@ grabOp t [< cont, ()] = eval t [< cont, Clock 0]
 emitOp : FamProd [< const () -% Clocked, Ticky] -|> Clocked
 emitOp t [< cont, Clock i] = printLn i >> eval t [< cont, ()]
 
-waiting : {s : World} -> FamProd [< Le s -% Clocked, Le s] -|> Clocked
-waiting t [< cont, le] = do
+waiting : (const () -% Clocked) -|> (const () -% Clocked)
+waiting t cont = \t', [< le, ()] => do
+  let cont' = BoxCoalgExp .map le cont 
   putStrLn "waiting"
   getLine >>= \case
     "" =>
-      let step = Later Now                   -- Le t (S t)
-          le' = BoxCoalgEnv .map step le     -- Le s (S t)
-          cont' = BoxCoalgExp .map step cont -- (Le s -% Clocked) (S t)
-      in waiting (S t) [< cont', le']
-    _  => eval t [< cont, le]
-
-updating : {s : World} -> (const () -% Clocked) s -> (Le s -|> Clocked)
-updating cont t le = eval t [< BoxCoalgExp .map le cont, ()]
+      let cont'' = BoxCoalgExp .map (Later Now) cont'
+      in eval (S t') [< waiting (S t') cont'', ()]
+    _  => eval t' [< cont', ()]
 
 waitOp : FamProd [< const () -% Clocked, const ()] -|> Clocked
-waitOp t [< cont, ()] = waiting t [< abst (updating cont) t, Now]
+waitOp t [< cont, ()] = eval t [< waiting t cont, ()]
 
 ClockedAlgebra : TSig .AlgebraOver Clocked
 ClockedAlgebra = MkAlgebraOver [
