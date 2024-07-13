@@ -2,6 +2,7 @@ module TimeSimple
 
 import Data.Fin
 import Data.Vect
+import Data.IORef
 
 public export
 infix 1 ~|>
@@ -103,7 +104,7 @@ namespace State
 
 namespace Time
   Ticky : Type
-  Ticky = Int
+  Ticky = IORef Int
 
   public export
   data OpTime : AlgSignature where
@@ -124,22 +125,27 @@ namespace Time
   wait = genericOp Wait
 
   Clocked : Type
-  Clocked = Int -> IO Unit
+  Clocked = List Ticky -> IO Unit
 
   waiting : Clocked -> Clocked
-  waiting c t = do
+  waiting c ts = do
     putStrLn "waiting"
     getLine >>= \case
-      "" => waiting c (t + 1)
-      _  => c t
+      "" => do
+        _ <- for ts (\ticky => modifyIORef ticky (+ 1))
+        waiting c ts
+      _  => c ts
 
   ClockedTime : (OpTime).AlgebraOver Clocked
-  ClockedTime {opSig = .(Unit ~|> Ticky)} Grab k x =
-    \t => k t t
-  ClockedTime {opSig = .(Ticky ~|> Unit)} Emit k x =
-    \t => printLn (t - x) >> k () t
-  ClockedTime {opSig = .(Unit ~|> Unit)}  Wait k x =
-    \t => waiting (k ()) t
+  ClockedTime {opSig = .(Unit ~|> Ticky)} Grab k x = \ts => do
+    ticky <- newIORef 0
+    k ticky (ticky :: ts)
+  ClockedTime {opSig = .(Ticky ~|> Unit)} Emit k x = \ts => do
+    cur <- readIORef x
+    printLn cur
+    k () ts
+  ClockedTime {opSig = .(Unit ~|> Unit)}  Wait k x = \ts => do
+    waiting (k ()) ts
   
   export
   Ex1 : (OpTime).Free Unit
@@ -155,7 +161,7 @@ namespace Time
   
   export
   Ex11 : IO ()
-  Ex11 = (ClockedTime).fold (\_, _ => putStrLn "done") Ex1 0
+  Ex11 = (ClockedTime).fold (\_, _ => putStrLn "done") Ex1 []
 
 main : IO ()
 main = Time.Ex11
