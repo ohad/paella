@@ -83,32 +83,27 @@ data Timey : Time -> Type where
   Sy : Timey n -> Timey (S n)
 
 Clocked : Time -> Type
-Clocked t = Timey t -> IO ()
+Clocked t = IO ()
 
 BoxCoalgClocked : BoxCoalg Clocked
-BoxCoalgClocked = MkBoxCoalg $ \t1, m, t2, le =>
-  \ty =>
-    case (ty, le) of
-      (Zy, Now) => m ty
-      ((Sy _), Now) => m ty
-      ((Sy ty'), (Later le')) => BoxCoalgClocked .map le' m ty'
+BoxCoalgClocked = MkBoxCoalg $ \t1, m, t2, le => m
 
 grabOp : FamProd [< Ticky -% Clocked, const ()] -|> Clocked
 grabOp t [< cont, ()] = eval t [< cont, Clock 0]
 
 emitOp : FamProd [< const () -% Clocked, Ticky] -|> Clocked
-emitOp t [< cont, Clock i] = \ty => printLn i >> eval t [< cont, ()] ty
+emitOp t [< cont, Clock i] = printLn i >> eval t [< cont, ()]
 
 waiting : {s : World} -> FamProd [< Le s -% Clocked, Le s] -|> Clocked
-waiting t [< cont, le] = \ty => do
+waiting t [< cont, le] = do
   putStrLn "waiting"
   getLine >>= \case
     "" =>
       let step = Later Now                   -- Le t (S t)
           le' = BoxCoalgEnv .map step le     -- Le s (S t)
           cont' = BoxCoalgExp .map step cont -- (Le s -% Clocked) (S t)
-      in waiting (S t) [< cont', le'] $ Sy ty
-    _  => eval t [< cont, le] $ ty
+      in waiting (S t) [< cont', le']
+    _  => eval t [< cont, le]
 
 updating : {s : World} -> (const () -% Clocked) s -> (Le s -|> Clocked)
 updating cont t le = eval t [< BoxCoalgExp .map le cont, ()]
@@ -141,7 +136,7 @@ MyProg' =          (\t, [< ]  =>
   emit _ y  )
 
 handle : TSig .Free (const ()) -|> Clocked
-handle t comp = ClockedAlgebra .fold (\t', (), ty' => putStrLn "done") t comp
+handle t comp = ClockedAlgebra .fold (\t', () => putStrLn "done") t comp
 
 main : IO ()
-main = handle Z (MyProg' Z [<]) Zy
+main = handle Z (MyProg' Z [<])
