@@ -78,10 +78,6 @@ export
 wait : const () -|> TSig .Free (const ())
 wait t _ = Op (TSig ?! 2) t [< (), abst pure t]
 
-data Timey : Time -> Type where
-  Zy : Timey Z
-  Sy : Timey n -> Timey (S n)
-
 Clocked : Time -> Type
 Clocked t = IO ()
 
@@ -95,8 +91,8 @@ emitOp : FamProd [< const () -% Clocked, Ticky] -|> Clocked
 emitOp t [< cont, Clock i] = printLn i >> eval t [< cont, ()]
 
 waiting : (const () -% Clocked) -|> (const () -% Clocked)
-waiting t cont = \t', [< le, ()] => do
-  let cont' = BoxCoalgExp .map le cont 
+waiting t cont = \t', [< ticks, ()] => do
+  let cont' = BoxCoalgExp .map ticks cont 
   putStrLn "waiting"
   getLine >>= \case
     "" =>
