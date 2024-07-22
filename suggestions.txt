@@ -1,0 +1,12 @@
+Timer : Type
+
+
+
+Grab : () ~> Timer
+
+Work : Timer * Nat ~> ()
+
+wakeUpAfter : Timer * Nat ~>Bool
+
+sync : Timer * Timer ~> ()
+
