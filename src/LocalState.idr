@@ -5,44 +5,45 @@ import Paella
 export
 infix 3 !!, ::=, ?!
 
-public export
-ConsCell : A
-ConsCell = Ptr
+data Cell = ABool | ConsCell
 
 public export
 -- Postulate: each parameter has a type
 -- For now, just cons cells
-TypeOf : A -> Family
-TypeOf Ptr = FamProd [< const String, Var ConsCell]
+0
+TypeOf : Cell -> Cell .family
+TypeOf ABool    = const Bool
+TypeOf ConsCell = FamProd [< const String, Var ConsCell]
 
 %hint
 public export
-BoxCoalgA : (a : A) -> BoxCoalg $ TypeOf a
+BoxCoalgCell : (a : Cell) -> BoxCoalg $ TypeOf a
 -- Should propagate structure more nicely
-BoxCoalgA Ptr = BoxCoalgProd $ [< BoxCoalgConst, BoxCoalgVar]
+BoxCoalgCell ABool = BoxCoalgConst
+BoxCoalgCell ConsCell = BoxCoalgProd $ [< BoxCoalgConst, BoxCoalgVar]
 
 public export
 ||| Type of reading an A-cell
-readType : A -> OpSig
+readType : Cell -> Cell .opSig
 readType a = Var a ~|> TypeOf a
 
-public export
+public export 0
 ||| Type of writing an a
 ||| w_0 : [a, []]
-writeType : A -> OpSig
+writeType : Cell -> Cell .opSig
 writeType a = FamProd [< Var a, TypeOf a] ~|> const ()
 
-public export
+public export 0
 ||| Allocate a fresh cell storing an a value
-newType : A -> OpSig
+newType : Cell -> Cell .opSig
 newType a = [< a].shift (TypeOf a) ~|> Var a
 
 public export
-data LSSig : Signature where
+data LSSig : Cell .signature where
   Read  : LSSig (readType  ConsCell)
   Write : LSSig (writeType ConsCell)
-  New   : LSSig (newType   ConsCell)
-
+  New   : {a : Cell} ->
+          LSSig (newType a)
 %hint
 public export
 LSSigFunc : BoxCoalgSignature LSSig
@@ -52,17 +53,17 @@ LSSigFunc Read = MkFunOpSig
   }
 LSSigFunc Write = MkFunOpSig
   { Arity = BoxCoalgConst
-  , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgA ConsCell]
+  , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgCell ConsCell]
   }
-LSSigFunc New = MkFunOpSig
+LSSigFunc (New {a}) = MkFunOpSig
   { Arity = BoxCoalgVar
-  , Args = [< ConsCell].shiftCoalg (BoxCoalgA ConsCell)
+  , Args = [< a].shiftCoalg (BoxCoalgCell a)
   }
 
 public export
 read : genOpType LSSig (readType ConsCell)
 read = genOp Read
-
+{-
 public export
 write : genOpType LSSig (writeType ConsCell)
 write = genOp Write
