@@ -86,13 +86,13 @@ BoxCoalgFree sigCoalg fCoalg = MkBoxCoalg $ \w, term, w', rho =>
 
 ||| The definition of a family `f` being an algebra over a signature `sig`
 public export 0
-(.AlgebraOver) : p.signature -> p.family -> Type
+(.AlgebraOver) : p.signature -> (0 f : p.family) -> Type
 sig.AlgebraOver f = {0 opSig : p.opSig} -> (op : sig opSig) ->
   (opSig.Arity -% f) -|> (opSig.Args -% f)
 
 ||| Make an algebra over `f` given the uncurried version of each operation
 export
-MkAlgebraOver : {sig : p.signature} -> {f : p.family} ->
+MkAlgebraOver : {sig : p.signature} -> {0 f : p.family} ->
   ({0 opSig : p.opSig} -> (op : sig opSig) ->
     FamProd [< opSig.Arity -% f, opSig.Args] -|> f)
   -> sig.AlgebraOver f
@@ -136,7 +136,7 @@ TermAlgebra {sig} f coalg = curryOp sig f coalg
 
 ||| The unit of the monad structure of `Free`
 export
-pure : {sig : p.signature} -> {f : p.family} -> f -|> sig.Free f
+pure : {sig : p.signature} -> {0 f : p.family} -> f -|> sig.Free f
 pure = Return
 
 ||| `sig.Free f` is the free algebra over `sig`, and so given an algebra
@@ -221,6 +221,4 @@ genOpType sig opSig = opSig.Args -|> sig.Free opSig.Arity
 
 public export
 genOp : {sig : p.signature} -> {0 opSig : p.opSig} -> (op : sig opSig) -> genOpType sig opSig
-genOp op w args =
-  let u = Op {sig} op w [< args , abst pure w]
-  in ?H18178
+genOp op w args = Op {sig} op w [< args, abst pure w]
