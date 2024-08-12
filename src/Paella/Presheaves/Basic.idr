@@ -15,5 +15,5 @@ BoxCoalgConst = MkBoxCoalg $ \_, x, _, _ => x
 
 ||| The family of variables of type `a` is a presheaf
 export
-BoxCoalgVar : {a : p} -> BoxCoalg {p} (Var a)
+BoxCoalgVar : {0 a : p} -> BoxCoalg {p} (Var a)
 BoxCoalgVar = MkBoxCoalg $ \w, pos, w', rho => rho a pos

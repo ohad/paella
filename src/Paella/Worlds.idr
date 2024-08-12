@@ -32,7 +32,7 @@ infixr 1 ~>
 ||| variable in `tgt`, i.e. a morphism of worlds
 public export 0
 (~>) : (src, tgt : p.world) -> Type
-(w1 ~> w2) {p} = (a : p) -> Var a w1 -> Var a w2
+(w1 ~> w2) {p} = (0 a : p) -> Var a w1 -> Var a w2
 
 ||| Identity renaming
 export
@@ -72,7 +72,8 @@ swapRen = cotuple inr inl
 
 ||| Bifunctorial action of coproduct
 export
-bimap : {w1, w2, w1', w2' : p.world} ->
+bimap : {0 w1, w1' : p.world} ->
+  {w2, w2' : p.world} ->
   (w1 ~> w1') -> (w2 ~> w2') -> (w1 ++ w2) ~> (w1' ++ w2')
 bimap f g a x = case split x of
   Left  y => inl a (f a y)
