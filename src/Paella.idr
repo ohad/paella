@@ -188,7 +188,7 @@ export
 (>>==) :
   {sig : p.signature} ->
   {0 gammas : SnocList p.family} ->
-  {f, g : p.family} ->
+  {0 f, g : p.family} ->
   (sigCoalg : BoxCoalgSignature sig) =>
   (gammaCoalgs : ForAll gammas BoxCoalg) =>
   (fCoalg : BoxCoalg f) =>
