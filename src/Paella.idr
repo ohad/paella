@@ -204,6 +204,20 @@ export
       (\w, [< env, x] => k w (env :< x))
   ) . tuple [< id, xs]
 
+public export
+infixr 1 >>>>
+(>>>>) :
+  {sig : p .signature} ->
+  {0 gammas : SnocList p.family} ->
+  {0 g : p.family} ->
+  (sigCoalg : BoxCoalgSignature sig) =>
+  (gammaCoalgs : ForAll gammas BoxCoalg) =>
+  (gCoalg : BoxCoalg g)  =>
+  (FamProd gammas -|> sig.Free (const ())) ->
+  (FamProd gammas -|> sig.Free g) ->
+  (FamProd gammas -|> sig.Free g)
+xs >>>> k =
+  xs >>== (\w, (env :< ()) => k w env)
 ------- Generic effects ----------
 
 -- Can derive from previous but can cut out hassle
