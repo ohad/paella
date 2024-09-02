@@ -206,6 +206,7 @@ export
 
 public export
 infixr 1 >>>>
+export
 (>>>>) :
   {sig : p .signature} ->
   {0 gammas : SnocList p.family} ->
