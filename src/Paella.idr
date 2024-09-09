@@ -73,7 +73,7 @@ BoxCoalgSignature sig = {0 opSig : p.opSig} -> (op : sig opSig) ->
 ||| When the signature consists of presheaves and the family is a presheaf,
 ||| then the free monad is also a presheaf
 export
-BoxCoalgFree : {sig : p.signature} -> {f : p.family} ->
+BoxCoalgFree : {sig : p.signature} -> {0 f : p.family} ->
   BoxCoalgSignature sig -> BoxCoalg f -> BoxCoalg (sig.Free f)
 BoxCoalgFree sigCoalg fCoalg = MkBoxCoalg $ \w, term, w', rho =>
   case term of
