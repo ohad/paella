@@ -18,7 +18,7 @@ namespace Any
 
   ||| Inject an element satisfying the property into an `Any`
   export
-  inject : {sx : SnocList a} -> {p : a -> Type} ->
+  inject : {sx : SnocList a} -> {0 p : a -> Type} ->
     x `Elem` sx -> p x -> Any p sx
   inject Here px = Here px
   inject (There y) px = There (inject y px)
@@ -51,14 +51,14 @@ namespace All
   ForAll : SnocList a -> (0 _ : (a -> Type)) -> Type
   ForAll sx p = All p sx
 
-  ||| Tabulate a snoclist into a snoclist of proofs given a way to construct 
+  ||| Tabulate a snoclist into a snoclist of proofs given a way to construct
   ||| proofs
   export
   tabulate : (sx : SnocList _) -> ((x : _) -> p x) -> All p sx
   tabulate [<] f = [<]
   tabulate (sx :< x) f = tabulate sx f :< f x
 
-  ||| Tabulate a snoclist into a snoclist of proofs given a way to construct 
+  ||| Tabulate a snoclist into a snoclist of proofs given a way to construct
   ||| proofs which knows the element belongs to the snoclist
   export
   tabulateElem :
