@@ -27,8 +27,8 @@ ForAll xs p = All p xs
 
 record CategoryStructure obj (hom : obj -> obj -> Type) where
   constructor MkCatStruct
-  comp : {a,b,c : obj} -> hom b c -> hom a b -> hom a c
-  id   : (a : obj) -> hom a a
+  comp : {0 a,b,c : obj} -> hom b c -> hom a b -> hom a c
+  id   : (0 a : obj) -> hom a a
 
 -- -- TODO:
 -- PshCat : CategoryStructure  (sig.Family) (-|>)
@@ -36,11 +36,11 @@ record CategoryStructure obj (hom : obj -> obj -> Type) where
 record CartesianStructure (cat : CategoryStructure obj hom) where
   constructor MkCart
   unit : obj
-  bang : {a : obj} -> hom a unit
+  bang : {0 a : obj} -> hom a unit
   prod : obj -> obj -> obj
-  fst : {a,b : obj} -> hom (prod a b) a
-  snd : {a,b : obj} -> hom (prod a b) b
-  tuple : {a,b,c : obj} -> hom c a -> hom c b -> hom c (a `prod` b)
+  fst : {0 a,b : obj} -> hom (prod a b) a
+  snd : {0 a,b : obj} -> hom (prod a b) b
+  tuple : {0 a,b,c : obj} -> hom c a -> hom c b -> hom c (a `prod` b)
 
 -- -- TODO
 -- PshCart : CartesianStructure PshCat
@@ -88,7 +88,7 @@ SemEnv {hom,obj} cat semBase syn = ForAll syn.primitives
   (\(_,prim) => hom (semType cat semBase prim.arg)
                     (semType cat semBase prim.result))
 
-interpVar : {ctx : Context (Ty base)} -> {type : Ty base} ->
+interpVar : {0 ctx : Context (Ty base)} -> {0 type : Ty base} ->
    (cat : ModelStructure obj hom) ->
    (semBase : SemBase cat base) ->
    Var ctx type ->
@@ -105,7 +105,7 @@ interpVar {ctx = ctx' :< (y, type')}
 interp : (cat : ModelStructure obj hom) ->
          (semBase : SemBase cat base) ->
          (semEnv  : SemEnv cat semBase syn) ->
-         {ty : Ty base} ->
+         {0 ty : Ty base} ->
          {ctx : Context (Ty base)} ->
          Term syn ctx ty ->
          hom (semCtx cat semBase ctx)
@@ -116,9 +116,13 @@ interp cat semBase semEnv (MkPair t1 t2) =
   let f1 = interp cat semBase semEnv t1
       f2 = interp cat semBase semEnv t2 
   in cat.car.tuple f1 f2
-interp cat semBase semEnv (Fst x) = ?interp_rhs_3
-interp cat semBase semEnv (Snd x) = ?interp_rhs_4
-interp cat semBase semEnv (PrimApp x y) = ?interp_rhs_5
-interp cat semBase semEnv (Let nm x y) = ?interp_rhs_6
-interp cat semBase semEnv (Pure x) = ?interp_rhs_7
-interp cat semBase semEnv (Bind nm x y) = ?interp_rhs_8
+interp cat semBase semEnv (Fst t) =
+  let f = interp cat semBase semEnv t 
+  in cat.cat.comp cat.car.fst f
+interp cat semBase semEnv (Snd t) =
+  let f = interp cat semBase semEnv t 
+  in cat.cat.comp cat.car.snd f
+interp cat semBase semEnv (PrimApp f t) = ?interp_rhs_5
+interp cat semBase semEnv (Let x t1 t2) = ?interp_rhs_6
+interp cat semBase semEnv (Pure t) = ?interp_rhs_7
+interp cat semBase semEnv (Bind x t1 t2) = ?interp_rhs_8
