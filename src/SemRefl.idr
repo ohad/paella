@@ -84,9 +84,9 @@ semCtx cat semBase (sx :< (x, ty))
 0
 SemEnv : (cat : ModelStructure obj hom) -> SemBase cat base ->
   Syntax base -> Type
-SemEnv {hom,obj} cat semBase syn = ForAll syn.primitives
-  (\(_,prim) => hom (semType cat semBase prim.arg)
-                    (semType cat semBase prim.result))
+SemEnv {hom,obj} cat semBase syn = Env syn.primitives
+  (\prim => hom (semType cat semBase prim.arg)
+                (semType cat semBase prim.result))
 
 interpVar : {0 ctx : Context (Ty base)} -> {0 type : Ty base} ->
    (cat : ModelStructure obj hom) ->
@@ -122,7 +122,10 @@ interp cat semBase semEnv (Fst t) =
 interp cat semBase semEnv (Snd t) =
   let f = interp cat semBase semEnv t 
   in cat.cat.comp cat.car.snd f
-interp cat semBase semEnv (PrimApp f t) = ?interp_rhs_5
+interp cat semBase semEnv (PrimApp p t) = 
+  let argSem = interp cat semBase semEnv t 
+      primSem = get semEnv (forgetName p)
+  in cat.cat.comp primSem argSem
 interp cat semBase semEnv (Let x t1 t2) = ?interp_rhs_6
 interp cat semBase semEnv (Pure t) = ?interp_rhs_7
 interp cat semBase semEnv (Bind x t1 t2) = ?interp_rhs_8
