@@ -111,8 +111,11 @@ interp : (cat : ModelStructure obj hom) ->
          hom (semCtx cat semBase ctx)
              (semType cat semBase ty)
 interp cat semBase semEnv (Var var) = interpVar cat semBase var
-interp cat semBase semEnv MkUnit = ?interp_rhs_1
-interp cat semBase semEnv (MkPair x y) = ?interp_rhs_2
+interp cat semBase semEnv MkUnit = cat.car.bang
+interp cat semBase semEnv (MkPair t1 t2) = 
+  let f1 = interp cat semBase semEnv t1
+      f2 = interp cat semBase semEnv t2 
+  in cat.car.tuple f1 f2
 interp cat semBase semEnv (Fst x) = ?interp_rhs_3
 interp cat semBase semEnv (Snd x) = ?interp_rhs_4
 interp cat semBase semEnv (PrimApp x y) = ?interp_rhs_5
