@@ -5,6 +5,7 @@ import Paella
 export
 infix 3 !!, ::=, ?!
 
+public export
 data Cell = ABool | ConsCell
 
 public export

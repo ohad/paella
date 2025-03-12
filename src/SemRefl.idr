@@ -4,19 +4,19 @@ import Data.SnocList.Quantifiers
 import Paella
 import LocalState
 
-data BaseType = Loc | Bit
+data BaseType = Loc Cell | Bit
 
 MemMan : Syntax BaseType
 MemMan = `[
-    read : Loc -> T Bit
-    write : Loc -> Bit -> T ()
-    alloc : Bit -> T Loc
+    read : Loc ABool -> T Bit
+    write : Loc ABool -> Bit -> T ()
+    alloc : Bit -> T (Loc ABool)
     true : Bit
     false : Bit
   ]
 
-t : Term MemMan [<] `(T (Bit, Bit))
-t = `(do
+ExampleProg : Term MemMan [<] `(T (Bit, Bit))
+ExampleProg = `(do
     a <- alloc false
     b <- alloc false
     write (a, true)
@@ -63,8 +63,8 @@ record CartesianStructure (cat : CategoryStructure obj hom) where
 
 PshCart : CartesianStructure (PshCat {sig})
 PshCart = MkCart
-  { unit  =  FamProd [<] `With` ?h891
-  , bang  = \w, x => [<]
+  { unit  =  (const Unit) `With` BoxCoalgConst
+  , bang  = \w, x => MkUnit
   , prod  = \x,y => FamProd [< x.family,y.family] `With` BoxCoalgProd [< x.action, y.action]
   , fst   = \w, [< x, y] => x
   , snd   = \w, [< x, y] => y
@@ -87,8 +87,14 @@ FreeMonad signa sigbox = MkMonad
   { func = \f => signa.Free f.family `With` BoxCoalgFree sigbox f.action
   , pure = Return
   , bind = \gamma,f,g,k =>
-         let 0 p = (>>==) {f=f.family,g=g.family,sigCoalg = sigbox, gammas= ?h1889, gammaCoalgs = ?h189, fCoalg = f.action, gCoalg = g.action} ?h89
-         in ?h71
+         g.action.extendStrength
+                   { gamma = gamma.family
+                   , f=f.family
+                   , g=g.family
+                   , sigCoalg = sigbox
+                   , gammaCoalg = gamma.action
+                   , fCoalg = f.action
+                   } k
   }
 
 
@@ -97,6 +103,13 @@ record ModelStructure obj hom where
   cat : CategoryStructure obj hom
   car : CartesianStructure cat
   mon : MonadStructure cat car
+
+CellPshCCC : ModelStructure (Cell).Presheaf (~|>)
+CellPshCCC = MkModel
+  { cat = PshCat
+  , car = PshCart
+  , mon = FreeMonad LSSig LSSigFunc
+  }
 
 0
 SemBase : ModelStructure obj hom -> Type -> Type
@@ -167,3 +180,20 @@ interp cat semBase semEnv (PrimApp p t) =
 interp cat semBase semEnv (Let x t1 t2) = ?interp_rhs_6
 interp cat semBase semEnv (Pure t) = ?interp_rhs_7
 interp cat semBase semEnv (Bind x t1 t2) = ?interp_rhs_8
+
+PresheafOf : BaseType -> (Cell).Presheaf
+PresheafOf (Loc x) = Var x `With` BoxCoalgVar
+PresheafOf Bit = (const Bool) `With` BoxCoalgConst
+
+MemManEnv : SemEnv CellPshCCC PresheafOf MemMan
+MemManEnv =
+  [< read
+  ,  write
+  ,  new
+  ,  (const $ const True)
+  ,  (const $ const False)
+  ]
+
+ExampleDen : (semCtx CellPshCCC PresheafOf [<]) .family -|>
+               (semType CellPshCCC PresheafOf (T (Pair (Base Bit) (Base Bit)))) .family
+ExampleDen = interp CellPshCCC PresheafOf MemManEnv ExampleProg
