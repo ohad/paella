@@ -161,6 +161,7 @@ interpVar {ctx = ctx' :< (y, type')}
            = interpVar cat semBase var
   in cat.cat.comp var' cat.car.fst
 
+0 -- Make relevant later
 interp : (cat : ModelStructure obj hom) ->
          (semBase : SemBase cat base) ->
          (semEnv  : SemEnv cat semBase syn) ->
@@ -185,7 +186,7 @@ interp cat semBase semEnv (PrimApp p t) =
   let argSem = interp cat semBase semEnv t
       primSem = get semEnv (forgetName p)
   in cat.cat.comp primSem argSem
-interp cat semBase semEnv (Let x t1 t2) =
+interp cat semBase semEnv (Let _ t1 t2) =
   let f1 = interp cat semBase semEnv t1
       f2 = interp cat semBase semEnv t2
   in cat.cat.comp
@@ -194,9 +195,19 @@ interp cat semBase semEnv (Let x t1 t2) =
 interp cat semBase semEnv (Pure t) =
   let f = interp cat semBase semEnv t
   in cat.cat.comp cat.mon.pure f
-interp cat semBase semEnv (Bind x t1 t2) =
-  let f1 = ?h89
-  in ?interp_rhs_8
+interp cat semBase semEnv (Bind {a,b} _ t1 t2) =  -- I think we need
+                                                  -- to ask Rob not to
+                                                  -- erase a,b
+  let 0 g : ?
+      g = semCtx cat semBase ctx
+      0 ia : ?
+      ia = semType cat semBase a
+      0 ib : ?
+      ib = semType cat semBase b
+      f1 := interp cat semBase semEnv t1
+      f2 := interp cat semBase semEnv t2
+      f3 := cat.mon.bind g ia ib f2
+  in cat.cat.comp f3 $ cat.car.tuple (cat.cat.id _) f1
 
 PresheafOf : BaseType -> (Cell).Presheaf
 PresheafOf (Loc x) = Var x `With` BoxCoalgVar
@@ -211,6 +222,7 @@ MemManEnv =
   ,  (const $ const False)
   ]
 
+0
 ExampleDen : (semCtx CellPshCCC PresheafOf [<]) .family -|>
                (semType CellPshCCC PresheafOf (T (Pair (Base Bit) (Base Bit)))) .family
 ExampleDen = interp CellPshCCC PresheafOf MemManEnv ExampleProg
