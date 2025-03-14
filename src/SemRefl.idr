@@ -60,12 +60,12 @@ record CartesianStructure (cat : CategoryStructure obj hom) where
   fst : {0 a,b : obj} -> hom (prod a b) a
   snd : {0 a,b : obj} -> hom (prod a b) b
   tuple : {0 a,b,c : obj} -> hom c a -> hom c b -> hom c (a `prod` b)
-  
+
 diag : (cat : CategoryStructure obj hom) -> (car : CartesianStructure cat) -> {0 a : obj} -> hom a (car.prod a a)
-diag {a} cat car = car.tuple (cat.id a) (cat.id a) 
+diag {a} cat car = car.tuple (cat.id a) (cat.id a)
 
 par : (cat : CategoryStructure obj hom) -> (car : CartesianStructure cat) -> hom a1 b1 -> hom a2 b2 -> hom (car.prod a1 a2) (car.prod b1 b2)
-par cat car f1 f2 = 
+par cat car f1 f2 =
   car.tuple (cat.comp f1 car.fst) (cat.comp f2 car.snd)
 
 
@@ -185,14 +185,18 @@ interp cat semBase semEnv (PrimApp p t) =
   let argSem = interp cat semBase semEnv t
       primSem = get semEnv (forgetName p)
   in cat.cat.comp primSem argSem
-interp cat semBase semEnv (Let x t1 t2) = 
+interp cat semBase semEnv (Let x t1 t2) =
   let f1 = interp cat semBase semEnv t1
-      f2 = interp cat semBase semEnv t2  
-  in  ?jesse -- cat.cat.comp (cat.cat.comp f2 (par cat.cat cat.car cat.cat.id f1)) (diag cat.cat cat.car)
-interp cat semBase semEnv (Pure t) = 
+      f2 = interp cat semBase semEnv t2
+  in cat.cat.comp
+               (cat.cat.comp f2 (par cat.cat cat.car (cat.cat.id _) f1))
+                                (diag cat.cat cat.car)
+interp cat semBase semEnv (Pure t) =
   let f = interp cat semBase semEnv t
   in cat.cat.comp cat.mon.pure f
-interp cat semBase semEnv (Bind x t1 t2) = ?interp_rhs_8
+interp cat semBase semEnv (Bind x t1 t2) =
+  let f1 = ?h89
+  in ?interp_rhs_8
 
 PresheafOf : BaseType -> (Cell).Presheaf
 PresheafOf (Loc x) = Var x `With` BoxCoalgVar
