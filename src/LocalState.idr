@@ -251,8 +251,8 @@ LSalg = MkAlgebraOver {sig = LSSig} $ \case
 
 public export
 handle :
-  (coalg : BoxCoalg p) =>
+  (coalg : BoxCoalg p) ->
   LSSig .Free p [<] ->
   Private p [<]
-handle comp =
+handle coalg comp =
   (LSalg {coalg}).fold (val {coalg}) [<] comp [<] [< id,[<]]

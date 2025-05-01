@@ -224,4 +224,5 @@ ExampleDen : (semCtx CellPshCCC PresheafOf [<]) .family -|>
 ExampleDen = interp CellPshCCC PresheafOf MemManEnv ExampleProg
 
 Ex : Private (FamProd [<const Bool, const Bool]) [<]
-Ex = handle (ExampleDen [<] MkUnit)
+Ex = handle (BoxCoalgProd [< BoxCoalgConst, BoxCoalgConst])
+            (ExampleDen [<] MkUnit)
