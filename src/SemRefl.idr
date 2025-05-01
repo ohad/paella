@@ -123,7 +123,6 @@ CellPshCCC = MkModel
 SemBase : ModelStructure obj hom -> Type -> Type
 SemBase {hom,obj} cat base = (ty : base) -> obj
 
-0
 semType : (cat : ModelStructure obj hom) ->
           (semBase : SemBase cat base) -> Ty base -> obj
 semType cat semBase (Base a) = semBase a
@@ -132,7 +131,6 @@ semType cat semBase (Pair a b) = cat.car.prod (semType cat semBase a)
                                               (semType cat semBase b)
 semType cat semBase (T a) = cat.mon.func (semType cat semBase a)
 
-0
 semCtx : (cat : ModelStructure obj hom) ->
   (semBase : SemBase cat base) ->
   (ctx : Context (Ty base)) -> obj
@@ -161,12 +159,11 @@ interpVar {ctx = ctx' :< (y, type')}
            = interpVar cat semBase var
   in cat.cat.comp var' cat.car.fst
 
-0 -- Make relevant later
 interp : (cat : ModelStructure obj hom) ->
          (semBase : SemBase cat base) ->
          (semEnv  : SemEnv cat semBase syn) ->
-         {0 ty : Ty base} ->
-         {0 ctx : Context (Ty base)} ->
+         {ty : Ty base} ->
+         {ctx : Context (Ty base)} ->
          Term syn ctx ty ->
          hom (semCtx cat semBase ctx)
              (semType cat semBase ty)
@@ -198,11 +195,11 @@ interp cat semBase semEnv (Pure t) =
 interp cat semBase semEnv (Bind {a,b} _ t1 t2) =  -- I think we need
                                                   -- to ask Rob not to
                                                   -- erase a,b
-  let 0 g : ?
+  let g : ?
       g = semCtx cat semBase ctx
-      0 ia : ?
+      ia : ?
       ia = semType cat semBase a
-      0 ib : ?
+      ib : ?
       ib = semType cat semBase b
       f1 := interp cat semBase semEnv t1
       f2 := interp cat semBase semEnv t2
@@ -222,7 +219,9 @@ MemManEnv =
   ,  (const $ const False)
   ]
 
-0
 ExampleDen : (semCtx CellPshCCC PresheafOf [<]) .family -|>
                (semType CellPshCCC PresheafOf (T (Pair (Base Bit) (Base Bit)))) .family
 ExampleDen = interp CellPshCCC PresheafOf MemManEnv ExampleProg
+
+Ex : Private (FamProd [<const Bool, const Bool]) [<]
+Ex = handle (ExampleDen [<] MkUnit)
