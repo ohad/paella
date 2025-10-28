@@ -256,3 +256,41 @@ handle :
   Private p [<]
 handle coalg comp =
   (LSalg {coalg}).fold (val {coalg}) [<] comp [<] [< id,[<]]
+
+public export
+runPrivate : Private (const p) -|> (const p)
+runPrivate w (Hide ctx val) = val
+
+{- I need to remember/figure out how to invert map like this....
+
+-- scratchpad
+data InvertMapLin : (xs : SnocList b) -> Type where
+  Z : InvertMapLin [<]
+  S : InvertMapLin xs -> InvertMapLin (xs :< x)
+
+
+step3 : {0 ys : SnocList b} ->
+        ForAll ys p ->
+        (0 xs : SnocList a) ->
+        (ford : map f xs = ys) ->
+        InvertMapLin xs
+step3 Refl [<] (xs :< x) impossible
+step3 Refl [<] [<] = ?step3_rhs_3
+step3 Refl (ps :< p) [<] impossible
+step3 Refl (ps :< p) (xs :< x) = ?step3_rhs_1
+
+{-
+invert : All g (map f xs) -> InvertMapLin xs
+
+invert {xs = Lin    } (ys:<y) impossible
+invert {xs = Lin } [<] = ?invert_rhs1
+invert {xs = xs :< x} [<] impossible
+invert {xs = xs :< x} (ys:<y) = ?invert_rhs23
+-}
+-}
+--We want a version of this with `tys` erased.
+constProd : {tys : _} -> FamProd (map Prelude.const tys) -|>
+            const (ForAll tys Prelude.id)
+constProd {tys = [<]} w [<] = [<]
+constProd {tys = tys :< ty} w (xs :< x) =
+  constProd {tys} w xs :< x

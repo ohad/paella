@@ -25,6 +25,16 @@ ExampleProg = `(do
     pure (x, y)
   )
 
+ExampleProg' : Term MemMan [<] `(T Bit)
+ExampleProg' = `(do
+    a <- alloc false
+    b <- alloc false
+    write (a, true)
+    x <- read a
+    y <- read b
+    pure x)
+
+
 ForAll : (xs : SnocList a) -> (p : a -> Type) -> Type
 ForAll xs p = All p xs
 
@@ -223,6 +233,12 @@ ExampleDen : (semCtx CellPshCCC PresheafOf [<]) .family -|>
                (semType CellPshCCC PresheafOf (T (Pair (Base Bit) (Base Bit)))) .family
 ExampleDen = interp CellPshCCC PresheafOf MemManEnv ExampleProg
 
-Ex : Private (FamProd [<const Bool, const Bool]) [<]
-Ex = handle (BoxCoalgProd [< BoxCoalgConst, BoxCoalgConst])
-            (ExampleDen [<] MkUnit)
+ExampleDen' : (semCtx CellPshCCC PresheafOf [<]) .family -|>
+               (semType CellPshCCC PresheafOf (T (Base Bit))) .family
+ExampleDen' = interp CellPshCCC PresheafOf MemManEnv ExampleProg'
+
+
+Ex' : Bool
+Ex' = runPrivate _
+    $ handle (BoxCoalgConst)
+             (ExampleDen' [<] MkUnit)
