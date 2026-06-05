@@ -6,75 +6,77 @@ export
 infix 3 !!, ::=, ?!
 
 public export
-ConsCell : A
-ConsCell = Ptr
+data Cell = ABool | ConsCell
 
 public export
 -- Postulate: each parameter has a type
 -- For now, just cons cells
-TypeOf : A -> Family
-TypeOf Ptr = FamProd [< const String, Var ConsCell]
+0
+TypeOf : Cell -> Cell .family
+TypeOf ABool    = const Bool
+TypeOf ConsCell = FamProd [< const String, Var ConsCell]
 
 %hint
 public export
-BoxCoalgA : (a : A) -> BoxCoalg $ TypeOf a
+BoxCoalgCell : (a : Cell) -> BoxCoalg $ TypeOf a
 -- Should propagate structure more nicely
-BoxCoalgA Ptr = BoxCoalgProd $ [< BoxCoalgConst, BoxCoalgVar]
+BoxCoalgCell ABool = BoxCoalgConst
+BoxCoalgCell ConsCell = BoxCoalgProd $ [< BoxCoalgConst, BoxCoalgVar]
 
-public export
+public export 0
 ||| Type of reading an A-cell
-readType : A -> OpSig
+readType : Cell -> Cell .opSig
 readType a = Var a ~|> TypeOf a
 
-public export
+public export 0
 ||| Type of writing an a
 ||| w_0 : [a, []]
-writeType : A -> OpSig
+writeType : Cell -> Cell .opSig
 writeType a = FamProd [< Var a, TypeOf a] ~|> const ()
 
-public export
+public export 0
 ||| Allocate a fresh cell storing an a value
-newType : A -> OpSig
+newType : Cell -> Cell .opSig
 newType a = [< a].shift (TypeOf a) ~|> Var a
 
 public export
-data LSSig : Signature where
-  Read  : LSSig (readType  ConsCell)
-  Write : LSSig (writeType ConsCell)
-  New   : LSSig (newType   ConsCell)
+data LSSig : Cell .signature where
+  Read  : {a : Cell} -> LSSig (readType  a)
+  Write : {a : Cell} -> LSSig (writeType a)
+  New   : {a : Cell} -> LSSig (newType a)
 
 %hint
 public export
 LSSigFunc : BoxCoalgSignature LSSig
-LSSigFunc Read = MkFunOpSig
-  { Arity = BoxCoalgProd [< BoxCoalgConst, BoxCoalgVar]
-  , Args = BoxCoalgVar
+LSSigFunc (Read  {a}) = MkFunOpSig
+  { Arity = BoxCoalgCell a
+  , Args  = BoxCoalgVar
   }
-LSSigFunc Write = MkFunOpSig
+LSSigFunc (Write {a}) = MkFunOpSig
   { Arity = BoxCoalgConst
-  , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgA ConsCell]
+  , Args = BoxCoalgProd [< BoxCoalgVar, BoxCoalgCell a]
   }
-LSSigFunc New = MkFunOpSig
+LSSigFunc (New   {a}) = MkFunOpSig
   { Arity = BoxCoalgVar
-  , Args = [< ConsCell].shiftCoalg (BoxCoalgA ConsCell)
+  , Args = [< a].shiftCoalg (BoxCoalgCell a)
   }
 
 public export
-read : genOpType LSSig (readType ConsCell)
+read : {a : Cell} -> genOpType LSSig (readType a)
 read = genOp Read
 
 public export
-write : genOpType LSSig (writeType ConsCell)
+write : {a : Cell} -> genOpType LSSig (writeType a)
 write = genOp Write
 
 public export
-new : genOpType LSSig (newType ConsCell)
+new : {a : Cell} -> genOpType LSSig (newType a)
 new = genOp New
 
 ---- The heap handler ----------------
 
-public export
-Heaplet : (shape : World) -> Family
+public export 0
+Heaplet : (shape : Cell .world) -> Cell .family
 Heaplet shape = FamProd (map TypeOf shape)
 
 public export
@@ -85,7 +87,7 @@ public export
 (h :< x) !! (There pos) = h !! pos
 
 public export
-record Update (a : A) (shape, w : World) where
+record Update (a : Cell) (shape, w : Cell .world) where
   constructor (::=)
   loc : Var a shape
   val : TypeOf a w
@@ -97,14 +99,14 @@ public export
 (h :< x).update (There pos ::= v) = h.update (pos ::= v) :< x
 
 public export
-HeapletCoalg : {shape : World} -> BoxCoalg (Heaplet shape)
+HeapletCoalg : {shape : Cell .world} -> BoxCoalg (Heaplet shape)
 HeapletCoalg = MkBoxCoalg $ \w, heaplet,w',rho =>
   mapPropertyWithRelevant'
-    (\a => (BoxCoalgA a).map rho)
+    (\a => (BoxCoalgCell a).map rho)
     heaplet
 
-public export
-Heap : Family
+public export 0
+Heap : Cell .family
 Heap w = Heaplet w w
 
 public export
@@ -114,7 +116,7 @@ Ex1 = [< [< "first of singleton", There Here]
       ]
 
 public export
-extendHeap : {w : World} ->
+extendHeap : {w : Cell .world} ->
   FamProd [< Heap , w.shift $ Heaplet w ] -|> w.shift Heap
 extendHeap {w} w' [< heap , init] =
   let u = mapToProperty $ (HeapletCoalg {shape = w'}).map
@@ -124,21 +126,20 @@ extendHeap {w} w' [< heap , init] =
   in propertyToMap (v ++ u)
 
 public export
-record Private (f : Family) (w : World) where
+record Private (f : Cell .family) (w : Cell .world) where
   constructor Hide
-  ctx : World
-  val : f (ctx ++ w)
+  ctx : Cell .world
+  val : ctx.shift f w
 
 namespace Private
   public export
-  pure : {f : Family} -> f -|> Private f
+  pure : {0 f : Cell .family} -> f -|> Private f
   pure w x = Hide {ctx = [<], val =
     replace {p = f}
       -- I'm going to regret this...
       (sym $ appendLinLeftNeutral w)
       x
       }
-
 {- The local independent coproduct completes a span of maps:
         rho2                   rho2
      w0 ---> w2            w0 ---> w2
@@ -176,7 +177,7 @@ namespace Private
 -}
 
 public export
-PrivateCoal : {f : Family} ->
+PrivateCoal : {0 f : Cell .family} ->
   (coalg : BoxCoalg f) -> BoxCoalg (Private f)
 PrivateCoal coalg = MkBoxCoalg $ \w, hidden, w', rho => Hide
   { ctx = hidden.ctx
@@ -185,7 +186,7 @@ PrivateCoal coalg = MkBoxCoalg $ \w, hidden, w', rho => Hide
 
 public export
 -- We can hide locations
-hide : {w1,w : World} -> {f : Family} ->
+hide : {w1,w : Cell .world} -> {0 f : Cell .family} ->
   Private f (w1 ++ w) -> Private f w
 hide hidden =
   Hide
@@ -195,8 +196,8 @@ hide hidden =
               hidden.val
     }
 
-public export
-LSHandlerCarrier : (f : Family) -> Family
+public export 0
+LSHandlerCarrier : (f : Cell .family) -> Cell .family
 LSHandlerCarrier f = Heap -% Private f
 
 public export
@@ -205,14 +206,14 @@ LSHandlerPsh : (coalg : BoxCoalg f) ->
 LSHandlerPsh coalg = BoxCoalgExp
 
 public export
-val : {f : Family} -> {coalg : BoxCoalg f} ->
+val : {0 f : Cell .family} -> {coalg : BoxCoalg f} ->
   coalg =|> (LSHandlerPsh coalg)
 val = coalg.curry $ \w, [< v, heap] =>
   Private.pure {f} w v
 
 public export
 -- Heap's LSAlgebra structure
-LSalg : {f : Family} -> {coalg : BoxCoalg f} ->
+LSalg : {0 f : Cell .family} -> {coalg : BoxCoalg f} ->
   LSSig .AlgebraOver (LSHandlerCarrier f)
 LSalg = MkAlgebraOver {sig = LSSig} $ \case
   Read  =>
@@ -223,32 +224,76 @@ LSalg = MkAlgebraOver {sig = LSSig} $ \case
     \roots, [< kont, [<loc, newval]], shape, [< rho, heap] =>
     let newHeap = heap.update
                   (rho _ loc ::=
-                     (BoxCoalgA ConsCell).map rho newval)
+                     (BoxCoalgCell _).map rho newval)
     in eval shape [< kont shape [< rho , ()] , newHeap]
-  New   =>
+  New {a}  =>
     \roots, [< kont, newval], shape, [< rho, heap] =>
-      let newheap : Heap ([< ConsCell] ++ shape)
-                  := extendHeap {w = [< ConsCell]} shape
+      let newheap : Heap ([< a] ++ shape)
+                  := extendHeap {w = [< a]} shape
                      [< heap , [<
-                        (BoxCoalgA ConsCell).map
+                        (BoxCoalgCell a).map
                           (Paella.Worlds.bimap id rho)
                        newval
                      ]]
-          newloc : Var ConsCell $ [< ConsCell] ++ shape
+          newloc : Var a $ [< a] ++ shape
                  := inl _ Here
+          rho' : roots ~> [<a] ++ shape
+          rho' = Worlds.(.) inr rho
           -- Calculate the result without hiding the new
           -- location
-          result : Private f ([<ConsCell] ++ shape)
-                 := kont ([< ConsCell] ++ shape)
-                          [< inr . rho , newloc]
-                          ([< ConsCell] ++ shape)
+          result : Private f ([<a] ++ shape)
+                 := kont ([< a] ++ shape)
+                          [< rho' , newloc]
+                          ([< a] ++ shape)
                           ([< id, newheap])
       in hide result
 
 public export
 handle :
-  LSSig .Free (const $ List String) [<] ->
-  Private (const (List String)) [<]
-handle comp =
-  let coalg = MkBoxCoalg (\w, strs, b, f => strs)
-  in (LSalg {coalg}).fold (val {coalg}) [<] comp [<] [< id,[<]]
+  (coalg : BoxCoalg p) ->
+  LSSig .Free p [<] ->
+  Private p [<]
+handle coalg comp =
+  (LSalg {coalg}).fold (val {coalg}) [<] comp [<] [< id,[<]]
+
+public export
+runPrivate : Private (const p) -|> (const p)
+runPrivate w (Hide ctx val) = val
+
+{- I need to remember/figure out how to invert map like this....
+
+-- scratchpad
+data InvertMapLin : (xs : SnocList b) -> Type where
+  Z : InvertMapLin [<]
+  S : InvertMapLin xs -> InvertMapLin (xs :< x)
+
+
+step3 : {0 ys : SnocList b} ->
+        ForAll ys p ->
+        (0 xs : SnocList a) ->
+        (ford : map f xs = ys) ->
+        InvertMapLin xs
+step3 Refl [<] (xs :< x) impossible
+step3 Refl [<] [<] = ?step3_rhs_3
+step3 Refl (ps :< p) [<] impossible
+step3 Refl (ps :< p) (xs :< x) = ?step3_rhs_1
+
+{-
+invert : All g (map f xs) -> InvertMapLin xs
+
+invert {xs = Lin    } (ys:<y) impossible
+invert {xs = Lin } [<] = ?invert_rhs1
+invert {xs = xs :< x} [<] impossible
+invert {xs = xs :< x} (ys:<y) = ?invert_rhs23
+-}
+-}
+--We want a version of this with `tys` erased.
+constProd : {tys : _} -> FamProd (map Prelude.const tys) -|>
+            const (ForAll tys Prelude.id)
+constProd {tys = [<]} w [<] = [<]
+constProd {tys = tys :< ty} w (xs :< x) =
+  constProd {tys} w xs :< x
+
+runST : {a : Type} ->
+  LSSig .Free (const a) [<] -> a
+runST x = (handle BoxCoalgConst x).val

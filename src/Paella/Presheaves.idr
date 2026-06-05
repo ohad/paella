@@ -13,35 +13,36 @@ import Paella.Families
 -- we perform no proofs elsewhere
 
 ||| A family is a presheaf when equipped with a functorial action
-public export
-PresheafOver : Family -> Type
-PresheafOver f = {w1, w2 : World} -> (rho : w1 ~> w2) -> (f w1 -> f w2)
+public export 0
+PresheafOver : p.family -> Type
+PresheafOver f = {w1, w2 : p.world} -> (rho : w1 ~> w2) -> (f w1 -> f w2)
 
+public export
 infixr 1 =|>
 
 namespace Coalgebra
   ||| A presheaf structure given in end form
   ||| The right-adjoint Fiore-transform comonad (Box)
-  public export
-  Box : Family -> Family
-  Box f a = (b : World) -> (a ~> b) -> f b
+  public export 0
+  Box : p.family -> p.family
+  Box f a = (b : p.world) -> (a ~> b) -> f b
 
   ||| Fiore transform: a `BoxCoalg` (with laws) is equivalent to a presheaf
   ||| (with laws)
   public export
-  record BoxCoalg (f : Family) where
+  record BoxCoalg (f : p.family) where
     constructor MkBoxCoalg
     next : f -|> Box f
 
   ||| A `BoxCoalg` gives a functorial action
   export
-  (.map) : {f : Family} -> BoxCoalg f -> PresheafOver f
+  (.map) : {0 f : p.family} -> BoxCoalg f -> PresheafOver f
   coalg.map {w1,w2} rho v = coalg.next w1 v w2 rho
 
   ||| A coalgebra map, if we had laws this would be the same as a natural
   ||| transformation
-  public export
-  (=|>) : {f, g : Family} -> (fAlg : BoxCoalg f) -> (gAlg : BoxCoalg g) -> Type
+  public export 0
+  (=|>) : {f, g : p.family} -> (fAlg : BoxCoalg f) -> (gAlg : BoxCoalg g) -> Type
   (=|>) {f, g} _ _ = f -|> g
 
 ||| A functorial action for a family induces a box coalgebra

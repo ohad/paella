@@ -14,6 +14,7 @@ indexIsElem [] i impossible
 indexIsElem (x :: xs) FZ = Here
 indexIsElem (x :: xs) (FS n) = There (indexIsElem xs n)
 
+public export
 infix 3 ?!
 public export
 (?!) : (xs : List a) -> (i : Fin (length xs)) -> (index' xs i) `Elem` xs
