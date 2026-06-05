@@ -229,6 +229,7 @@ MemManEnv =
   ,  (const $ const False)
   ]
 
+
 ExampleDen : (semCtx CellPshCCC PresheafOf [<]) .family -|>
                (semType CellPshCCC PresheafOf (T (Pair (Base Bit) (Base Bit)))) .family
 ExampleDen = interp CellPshCCC PresheafOf MemManEnv ExampleProg
@@ -238,7 +239,7 @@ ExampleDen' : (semCtx CellPshCCC PresheafOf [<]) .family -|>
 ExampleDen' = interp CellPshCCC PresheafOf MemManEnv ExampleProg'
 
 
-Ex' : Bool
-Ex' = runPrivate _
-    $ handle (BoxCoalgConst)
+Ex' : Private (const Bool) ?
+Ex' = --runPrivate _
+    handle (BoxCoalgConst)
              (ExampleDen' [<] MkUnit)

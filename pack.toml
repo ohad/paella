@@ -4,6 +4,7 @@ path = "."
 ipkg = "paella.ipkg"
 test = "test/test.ipkg"
 
+
 [custom.all.paella-test]
 type = "local"
 path = "test"
@@ -15,8 +16,16 @@ ipkg = "test.ipkg"
 # ipkg = "semantic-reflection.ipkg"
 # commit = "fetch-latest:main"
 
-[custom.all.semantic-reflection]
-type = "local"
-path = "/home/ohad/dev/semantic-reflection"
-ipkg = "semantic-reflection.ipkg"
+#[custom.all.semantic-reflection]
+#type = "local"
+#path = "/home/ohad/dev/semantic-reflection"
+#ipkg = "semantic-reflection.ipkg"
 #commit = "fetch-latest:main"
+
+[custom.all.semantic-reflection]
+type = "git"
+# url = "https://github.com/madman-bob/semantic-reflection"
+url = "git@github.com:ohad/semantic-reflection.git"
+ipkg = "semantic-reflection.ipkg"
+commit = "fetch-latest:main"
+# commit = "fetch-latest:monadic-quantities"

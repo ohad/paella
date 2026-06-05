@@ -129,8 +129,7 @@ public export
 record Private (f : Cell .family) (w : Cell .world) where
   constructor Hide
   ctx : Cell .world
-  val : f (ctx ++ w)
-
+  val : ctx.shift f w
 
 namespace Private
   public export
@@ -294,3 +293,7 @@ constProd : {tys : _} -> FamProd (map Prelude.const tys) -|>
 constProd {tys = [<]} w [<] = [<]
 constProd {tys = tys :< ty} w (xs :< x) =
   constProd {tys} w xs :< x
+
+runST : {a : Type} ->
+  LSSig .Free (const a) [<] -> a
+runST x = (handle BoxCoalgConst x).val
